@@ -124,7 +124,23 @@ export async function scanFiles(files: File[], onProgress?: (progress: number, c
       stats.metadataList.push(metadata);
 
       // Duration (in seconds from metadata)
-      const durationSec = metadata.duration || 0;
+      let durationSec = metadata.duration;
+
+      // Si la durée n'est pas un nombre fini valide, on utilise l'estimation
+      if (!durationSec || isNaN(durationSec) || !isFinite(durationSec)) {
+        if (file.name.match(/\.(wav|aiff|aif)$/i)) {
+          durationSec = file.size / (1411200 / 8);
+        } else {
+          durationSec = file.size / (320000 / 8); // Hypothèse MP3 320k
+        }
+      }
+
+      // Filet de sécurité ultime : minimum 300s si le calcul de taille est aberrant
+      if (!durationSec || isNaN(durationSec) || durationSec <= 0) {
+        durationSec = 300;
+      }
+
+      metadata.duration = durationSec;
       stats.totalDurationInSeconds += durationSec;
 
       const titleSearchString = `${metadata.title || ''}`.toLowerCase();
