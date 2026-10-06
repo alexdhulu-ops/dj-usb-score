@@ -3,7 +3,6 @@ import { DropZone } from './components/DropZone';
 import { ResultCard } from './components/ResultCard';
 import { scanFiles } from './services/fileScanner';
 import { calculateScore, type ScoreResult } from './services/scoringEngine';
-import { Headphones } from 'lucide-react';
 
 function App() {
   const [isScanning, setIsScanning] = useState(false);
@@ -36,10 +35,14 @@ function App() {
     <div className="min-h-screen bg-dj-dark text-gray-100 font-sans selection:bg-dj-orange selection:text-white">
       <header className="border-b border-white/5 bg-dj-gray/50 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center space-x-3">
-          <Headphones className="w-8 h-8 text-dj-orange" />
-          <h1 className="text-xl font-black tracking-widest uppercase font-mono bg-clip-text text-transparent bg-gradient-to-r from-dj-orange to-dj-green">
-            USB Inspector
-          </h1>
+          <button
+            onClick={handleReset}
+            className="flex items-center space-x-2 text-xl font-press-start pixelated tracking-widest uppercase hover:translate-y-[1px] hover:brightness-110 transition-all active:translate-y-[2px]"
+            style={{ textShadow: '2px 2px 0px #000' }}
+          >
+            <span className="text-dj-orange">VIBE</span>
+            <span className="text-dj-green">CHECK</span>
+          </button>
         </div>
       </header>
 
