@@ -11,6 +11,9 @@ export interface AudioMetadata {
   container?: string;
   isFakeLossless: boolean;
   extension: string;
+  peak?: number;
+  rms?: number;
+  crestFactor?: number;
 }
 
 export async function parseAudioFile(file: File): Promise<AudioMetadata> {
@@ -25,10 +28,17 @@ export async function parseAudioFile(file: File): Promise<AudioMetadata> {
   }
 
   let isFakeLossless = false;
+  let dynamicStats: { peak?: number, rms?: number, crestFactor?: number } = {};
 
-  // Check for fake lossless on wav and aiff files
+  // For audio files, we extract dynamic range and optionally check fake lossless
   if (extension === 'wav' || extension === 'aiff') {
-    isFakeLossless = await checkFakeLossless(file);
+    const analysis = await analyzeAudioChunk(file, true);
+    isFakeLossless = analysis.isFakeLossless;
+    dynamicStats = { peak: analysis.peak, rms: analysis.rms, crestFactor: analysis.crestFactor };
+  } else {
+    // For other formats, we only check dynamics
+    const analysis = await analyzeAudioChunk(file, false);
+    dynamicStats = { peak: analysis.peak, rms: analysis.rms, crestFactor: analysis.crestFactor };
   }
 
   const format = metadata?.format;
@@ -45,10 +55,13 @@ export async function parseAudioFile(file: File): Promise<AudioMetadata> {
     container: format?.container,
     isFakeLossless,
     extension,
+    peak: dynamicStats.peak,
+    rms: dynamicStats.rms,
+    crestFactor: dynamicStats.crestFactor,
   };
 }
 
-async function checkFakeLossless(file: File): Promise<boolean> {
+async function analyzeAudioChunk(file: File, checkLossless: boolean): Promise<{ isFakeLossless: boolean, peak?: number, rms?: number, crestFactor?: number }> {
   try {
     // To avoid loading massive files into memory, we slice the first 5MB
     // This is usually enough for metadata + some audio frames.
@@ -66,7 +79,26 @@ async function checkFakeLossless(file: File): Promise<boolean> {
     // Attempt to decode
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-    // We get the first channel data
+    // Dynamics calculation (Peak, RMS, Crest Factor)
+    const channelData = audioBuffer.getChannelData(0);
+    let sumSquares = 0;
+    let peak = 0;
+    for (let i = 0; i < channelData.length; i++) {
+      const absVal = Math.abs(channelData[i]);
+      if (absVal > peak) {
+        peak = absVal;
+      }
+      sumSquares += absVal * absVal;
+    }
+    const rms = Math.sqrt(sumSquares / channelData.length);
+    let crestFactor: number | undefined = undefined;
+    if (rms > 0) {
+      crestFactor = 20 * Math.log10(peak / rms);
+    }
+
+    if (!checkLossless) {
+      return { isFakeLossless: false, peak, rms, crestFactor };
+    }
 
 
     // We only need a small sample of the audio to analyze (e.g., 2048 samples)
@@ -111,11 +143,10 @@ async function checkFakeLossless(file: File): Promise<boolean> {
     }
 
     // If it doesn't have high frequency energy, it's a fake lossless (cutoff < 16kHz)
-    return !hasHighFreqEnergy;
+    return { isFakeLossless: !hasHighFreqEnergy, peak, rms, crestFactor };
 
   } catch (error) {
-    console.error("Error decoding audio chunk for fake lossless check", error);
-    // On error, default to false (don't unfairly penalize if we can't parse)
-    return false;
+    console.error("Error decoding audio chunk", error);
+    return { isFakeLossless: false };
   }
 }

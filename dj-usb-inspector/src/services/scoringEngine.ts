@@ -21,9 +21,9 @@ const VERDICTS: Record<Rank, string> = {
 export function calculateScore(stats: ScanStats): ScoreResult {
   let score = 0;
 
-  // Rule 1: Pureté spectrale (30 pts)
-  // 30 pts si lossless authentique ou MP3 CBR 320. Malus direct si faux lossless détecté.
-  let pureteScore = 30;
+  // Rule 1: Pureté spectrale (25 pts)
+  // 25 pts si lossless authentique ou MP3 CBR 320. Malus direct si faux lossless détecté.
+  let pureteScore = 25;
   if (stats.hasFakeLossless) {
     pureteScore = 0; // Malus direct
   } else {
@@ -41,7 +41,7 @@ export function calculateScore(stats: ScanStats): ScoreResult {
 
     if (stats.totalTracks > 0) {
       const hqRatio = highQualityCount / stats.totalTracks;
-      pureteScore = Math.round(30 * hqRatio);
+      pureteScore = Math.round(25 * hqRatio);
     } else {
       pureteScore = 0;
     }
@@ -92,18 +92,61 @@ export function calculateScore(stats: ScanStats): ScoreResult {
   }
   score += cultureScore;
 
-  // Rule 4: Marathon 8h (20 pts)
-  // 20 pts si durée cumulée >= 8h (480 minutes). Dégressif proportionnellement si durée < 8h.
+  // Rule 4: Marathon 8h (15 pts)
+  // 15 pts si durée cumulée >= 8h (480 minutes). Dégressif proportionnellement si durée < 8h.
   const totalMinutes = stats.totalDurationMs / (1000 * 60);
   let marathonScore = 0;
   if (totalMinutes >= 480) {
-    marathonScore = 20;
+    marathonScore = 15;
   } else {
-    marathonScore = Math.round((totalMinutes / 480) * 20);
+    marathonScore = Math.round((totalMinutes / 480) * 15);
   }
   score += marathonScore;
 
-  // Rule 5: Bonus Daft Punk (10 pts)
+  // Rule 5: Dynamique sonore (10 pts)
+  let dynamiqueScore = 0;
+  let hasCrushedSound = false;
+  if (stats.totalTracks > 0) {
+    let dynTotal = 0;
+    let trackWithDynCount = 0;
+    for (const track of stats.metadataList) {
+      if (track.crestFactor !== undefined && track.peak !== undefined) {
+        trackWithDynCount++;
+        let trackDynScore = 0;
+
+        if (track.crestFactor >= 8 && track.crestFactor <= 14) {
+          trackDynScore += 10;
+        } else if (track.crestFactor < 6) {
+          trackDynScore += 0;
+          hasCrushedSound = true;
+        } else {
+          trackDynScore += 5; // proportional for 6-8 or >14
+        }
+
+        if (track.peak < 0.5) { // < -6 dBFS
+          trackDynScore -= 5;
+        }
+
+        dynTotal += Math.max(0, trackDynScore);
+      }
+    }
+
+    if (trackWithDynCount > 0) {
+      dynamiqueScore = Math.round(dynTotal / trackWithDynCount);
+    } else {
+      dynamiqueScore = 10; // Default to full points if no dynamic info could be extracted (e.g. all decoding failed)
+    }
+  }
+  score += dynamiqueScore;
+
+  // Rule 6: Hygiène & Parasites (10 pts)
+  let hygieneScore = 10;
+  hygieneScore -= Math.min(15, stats.parasiteFilesCount * 3);
+  hygieneScore -= Math.min(20, stats.ripKeywordsCount * 5);
+  hygieneScore = Math.max(0, hygieneScore); // base de 10 max
+  score += hygieneScore;
+
+  // Rule 7: Bonus Daft Punk (10 pts)
   let daftPunkScore = 0;
   if (stats.hasDaftPunk) {
     daftPunkScore = 10;
@@ -157,9 +200,28 @@ export function calculateScore(stats: ScanStats): ScoreResult {
     rank = maxRank;
   }
 
+  let finalVerdict = VERDICTS[rank];
+
+  const additionalFeedbacks: string[] = [];
+  if (stats.parasiteFilesCount > 0) {
+    additionalFeedbacks.push("Une clé USB n'est pas un dossier administratif. Fais du tri.");
+  }
+  if (stats.ripKeywordsCount > 0) {
+    additionalFeedbacks.push("L'odeur du convertisseur YouTube à 3h du matin a alerté le système.");
+  }
+  if (hasCrushedSound) {
+    additionalFeedbacks.push("Tes formes d'onde ressemblent à des briques de béton. Laisse respirer tes kicks.");
+  }
+
+  if (additionalFeedbacks.length > 0) {
+    // Pick a random feedback to append
+    const randomFeedback = additionalFeedbacks[Math.floor(Math.random() * additionalFeedbacks.length)];
+    finalVerdict += " " + randomFeedback;
+  }
+
   return {
     score,
     rank,
-    verdict: VERDICTS[rank],
+    verdict: finalVerdict,
   };
 }
