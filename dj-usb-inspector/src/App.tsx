@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { DropZone } from './components/DropZone';
-import { ScoreDisplay } from './components/ScoreDisplay';
+import { ResultCard } from './components/ResultCard';
 import { scanFiles } from './services/fileScanner';
 import { calculateScore, type ScoreResult } from './services/scoringEngine';
 import { Headphones } from 'lucide-react';
@@ -62,7 +62,7 @@ function App() {
             />
           </div>
         ) : (
-          <ScoreDisplay
+          <ResultCard
             result={result}
             onReset={handleReset}
           />
