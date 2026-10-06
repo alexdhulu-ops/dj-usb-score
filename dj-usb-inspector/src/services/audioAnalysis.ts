@@ -17,7 +17,7 @@ export interface AudioMetadata {
   fileSize?: number;
 }
 
-export async function parseAudioFile(file: File): Promise<AudioMetadata> {
+export async function parseAudioFile(file: File, analyzeFull: boolean = false): Promise<AudioMetadata> {
   const extension = file.name.split('.').pop()?.toLowerCase() || '';
 
   let metadata: mm.IAudioMetadata | null = null;
@@ -31,15 +31,17 @@ export async function parseAudioFile(file: File): Promise<AudioMetadata> {
   let isFakeLossless = false;
   let dynamicStats: { peak?: number, rms?: number, crestFactor?: number } = {};
 
-  // For audio files, we extract dynamic range and optionally check fake lossless
-  if (extension === 'wav' || extension === 'aiff') {
-    const analysis = await analyzeAudioChunk(file, true);
-    isFakeLossless = analysis.isFakeLossless;
-    dynamicStats = { peak: analysis.peak, rms: analysis.rms, crestFactor: analysis.crestFactor };
-  } else {
-    // For other formats, we only check dynamics
-    const analysis = await analyzeAudioChunk(file, false);
-    dynamicStats = { peak: analysis.peak, rms: analysis.rms, crestFactor: analysis.crestFactor };
+  if (analyzeFull) {
+    // For audio files, we extract dynamic range and optionally check fake lossless
+    if (extension === 'wav' || extension === 'aiff') {
+      const analysis = await analyzeAudioChunk(file, true);
+      isFakeLossless = analysis.isFakeLossless;
+      dynamicStats = { peak: analysis.peak, rms: analysis.rms, crestFactor: analysis.crestFactor };
+    } else {
+      // For other formats, we only check dynamics
+      const analysis = await analyzeAudioChunk(file, false);
+      dynamicStats = { peak: analysis.peak, rms: analysis.rms, crestFactor: analysis.crestFactor };
+    }
   }
 
   const format = metadata?.format;
@@ -65,10 +67,10 @@ export async function parseAudioFile(file: File): Promise<AudioMetadata> {
 
 async function analyzeAudioChunk(file: File, checkLossless: boolean): Promise<{ isFakeLossless: boolean, peak?: number, rms?: number, crestFactor?: number }> {
   try {
-    // To avoid loading massive files into memory, we slice the first 5MB
+    // To avoid loading massive files into memory, we slice the first 512KB
     // This is usually enough for metadata + some audio frames.
     // In actual WAV/AIFF files, PCM data starts early.
-    const sliceSize = Math.min(file.size, 5 * 1024 * 1024);
+    const sliceSize = Math.min(file.size, 512 * 1024);
     const chunk = file.slice(0, sliceSize);
     const arrayBuffer = await chunk.arrayBuffer();
 

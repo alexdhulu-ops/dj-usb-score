@@ -7,17 +7,25 @@ import { calculateScore, type ScoreResult } from './services/scoringEngine';
 function App() {
   const [isScanning, setIsScanning] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [currentScan, setCurrentScan] = useState(0);
+  const [totalScan, setTotalScan] = useState(0);
   const [result, setResult] = useState<ScoreResult | null>(null);
   const [stats, setStats] = useState<any>(null);
 
   const handleFilesSelected = async (files: File[]) => {
     setIsScanning(true);
     setProgress(0);
+    setCurrentScan(0);
+    setTotalScan(0);
     setResult(null);
     setStats(null);
 
     try {
-      const scanStats = await scanFiles(files, (p) => setProgress(p));
+      const scanStats = await scanFiles(files, (p, current, total) => {
+        setProgress(p);
+        setCurrentScan(current);
+        setTotalScan(total);
+      });
       const finalScore = calculateScore(scanStats);
       setStats(scanStats);
       setResult(finalScore);
@@ -66,6 +74,8 @@ function App() {
               onFilesSelected={handleFilesSelected}
               isScanning={isScanning}
               progress={progress}
+              currentScan={currentScan}
+              totalScan={totalScan}
             />
           </div>
         ) : (
