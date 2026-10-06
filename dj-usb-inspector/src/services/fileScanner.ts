@@ -9,9 +9,14 @@ export interface ScanStats {
   hasDaftPunk: boolean;
   hasFakeLossless: boolean;
   metadataList: AudioMetadata[];
+  parasiteFilesCount: number;
+  ripKeywordsCount: number;
 }
 
 const SUPPORTED_EXTENSIONS = ['mp3', 'wav', 'aiff', 'aif', 'flac', 'alac', 'm4a', 'aac', 'ogg'];
+
+const PARASITE_EXTENSIONS = ['pdf', 'docx', 'xlsx', 'exe', 'dmg', 'zip', 'rar', 'apk', 'iso'];
+const RIP_KEYWORDS = ['y2mate', 'yt1s', 'official video', 'official audio', 'clip officiel', 'free download'];
 
 const DAFT_PUNK_KEYWORDS = [
   'daft punk',
@@ -35,12 +40,24 @@ export async function scanFiles(files: File[], onProgress?: (progress: number) =
     hasDaftPunk: false,
     hasFakeLossless: false,
     metadataList: [],
+    parasiteFilesCount: 0,
+    ripKeywordsCount: 0,
   };
 
-  const audioFiles = files.filter(file => {
+  const audioFiles: File[] = [];
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
     const ext = file.name.split('.').pop()?.toLowerCase();
-    return ext && SUPPORTED_EXTENSIONS.includes(ext);
-  });
+
+    if (ext && PARASITE_EXTENSIONS.includes(ext)) {
+      stats.parasiteFilesCount++;
+    }
+
+    if (ext && SUPPORTED_EXTENSIONS.includes(ext)) {
+      audioFiles.push(file);
+    }
+  }
 
   stats.totalTracks = audioFiles.length;
 
@@ -77,6 +94,15 @@ export async function scanFiles(files: File[], onProgress?: (progress: number) =
       // Daft Punk Easter Egg
       if (!stats.hasDaftPunk && isDaftPunk(metadata)) {
         stats.hasDaftPunk = true;
+      }
+
+      // Check for RIP keywords in file name, path, and metadata
+      const fullPath = file.webkitRelativePath || file.name;
+      const searchableText = `${fullPath} ${metadata.artist || ''} ${metadata.title || ''}`.toLowerCase();
+
+      const hasRipKeyword = RIP_KEYWORDS.some(keyword => searchableText.includes(keyword));
+      if (hasRipKeyword) {
+        stats.ripKeywordsCount++;
       }
 
     } catch (e) {

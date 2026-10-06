@@ -5,6 +5,8 @@ import { type ScanStats } from './fileScanner';
 describe('Scoring Engine', () => {
   it('Case 1: D rank (short duration, bad formats, fake lossless)', () => {
     const stats: ScanStats = {
+      parasiteFilesCount: 0,
+      ripKeywordsCount: 0,
       totalDurationMs: 120 * 60 * 1000, // 2 hours
       formatDistribution: { mp3: 10 },
       totalTracks: 10,
@@ -32,6 +34,8 @@ describe('Scoring Engine', () => {
 
   it('Case 2: B rank with fake lossless (high score but capped to B)', () => {
     const stats: ScanStats = {
+      parasiteFilesCount: 0,
+      ripKeywordsCount: 0,
       totalDurationMs: 600 * 60 * 1000, // 10 hours
       formatDistribution: { aiff: 100, wav: 10 },
       totalTracks: 110,
@@ -55,6 +59,8 @@ describe('Scoring Engine', () => {
 
   it('Case 3: S+ rank (perfect + Daft Punk)', () => {
     const stats: ScanStats = {
+      parasiteFilesCount: 0,
+      ripKeywordsCount: 0,
       totalDurationMs: 500 * 60 * 1000, // > 8h
       formatDistribution: { aiff: 100 },
       totalTracks: 100,
@@ -72,6 +78,8 @@ describe('Scoring Engine', () => {
 
   it('Case 4: S rank (perfect but no Daft Punk - caps to 94)', () => {
     const stats: ScanStats = {
+      parasiteFilesCount: 0,
+      ripKeywordsCount: 0,
       totalDurationMs: 500 * 60 * 1000, // > 8h
       formatDistribution: { aiff: 100 },
       totalTracks: 100,
