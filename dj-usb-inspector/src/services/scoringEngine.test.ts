@@ -77,8 +77,6 @@ describe('Scoring Engine', () => {
       hasFakeLossless: false,
       testedTracksCount: 8,
       badAudioCount: 0,
-      testedTracksCount: 8,
-      badAudioCount: 0,
       metadataList: Array(550).fill({ extension: 'aiff', isFakeLossless: false }),
       duplicateCount: 0, filesForTree: [], folderRanks: {},
     };
@@ -99,6 +97,8 @@ describe('Scoring Engine', () => {
       extendedTracks: 550,
       hasDaftPunk: false,
       hasFakeLossless: false,
+      testedTracksCount: 8,
+      badAudioCount: 0,
       metadataList: Array(550).fill({ extension: 'aiff', isFakeLossless: false }),
       duplicateCount: 0, filesForTree: [], folderRanks: {},
     };
