@@ -23,15 +23,15 @@ describe('Scoring Engine', () => {
 
     // Purity: 0 (fake lossless)
     // Compat: 5 * 10 / 10 = 5
-    // Culture: proportional: extendedRatio = 0.1 -> (0.1/0.5)*20 = 4
+    // Culture: extendedRatio = 0.1 -> 5 pts
     // Marathon: 120 >= 120 -> 14
     // Dynamique: 10 (default)
     // Hygiene: 15
-    // Total = 48 -> Rank C (>=45)
+    // Total = 49 -> Rank C (>=45)
 
     const result = calculateScore(stats);
     expect(result.rank).toBe('C');
-    expect(result.score).toBe(48);
+    expect(result.score).toBe(49);
   });
 
   it('Case 2: B rank with fake lossless (high score but capped to B)', () => {
@@ -98,5 +98,24 @@ describe('Scoring Engine', () => {
     const result = calculateScore(stats);
     expect(result.rank).toBe('S+');
     expect(result.score).toBe(100);
+  });
+
+  it('Case 5: The Bomb! (Extended track 14:51) should give max culture score', () => {
+    const stats: ScanStats = {
+      parasiteFilesCount: 0,
+      ripKeywordsCount: 0,
+      totalDurationMs: 891 * 1000, // 14:51
+      formatDistribution: { wav: 1 },
+      totalTracks: 1,
+      shortTracks: 0,
+      extendedTracks: 1, // Will be considered extended!
+      hasDaftPunk: false,
+      hasFakeLossless: false,
+      metadataList: [{ extension: 'wav', isFakeLossless: false, duration: 891 }],
+      duplicateCount: 0, filesForTree: [], folderRanks: {},
+    };
+
+    const result = calculateScore(stats);
+    expect(result.details.extendedCulture).toBe(20);
   });
 });
