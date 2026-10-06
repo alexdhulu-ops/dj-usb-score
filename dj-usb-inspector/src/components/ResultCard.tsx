@@ -257,6 +257,7 @@ function DriveMap({ stats }: { stats: ScanStats }) {
             isFile,
             isParasite: isFile ? file.isParasite : false,
             isAudio: isFile ? file.isAudio : false,
+            isDuplicate: isFile ? file.isDuplicate : false,
             fullPath: pathAccum
           };
         }
@@ -287,8 +288,10 @@ function DriveMap({ stats }: { stats: ScanStats }) {
         if (node.isFile) {
           if (node.isParasite) {
             lineStr += `[!] ${node.name}`;
+          } else if (node.isDuplicate) {
+            lineStr += `[DUPLICATE] ${node.name}`;
           } else {
-             // Only print files if it's a parasite, else we rely on dir count
+             // Only print files if it's a parasite or duplicate, else we rely on dir count
              return;
           }
         } else {
@@ -301,7 +304,7 @@ function DriveMap({ stats }: { stats: ScanStats }) {
         }
       }
 
-      if (node.isFile && node.isParasite) {
+      if (node.isFile && (node.isParasite || node.isDuplicate)) {
          // Return an object to know we need to highlight this line
          lines.push(`$RED$${lineStr}`);
       } else {
@@ -310,8 +313,8 @@ function DriveMap({ stats }: { stats: ScanStats }) {
 
       if (!node.isFile) {
         const children = Object.values(node.children);
-        // We only want to show directories or parasite files
-        const visibleChildren = children.filter((c: any) => !c.isFile || c.isParasite);
+        // We only want to show directories, parasite files, or duplicates
+        const visibleChildren = children.filter((c: any) => !c.isFile || c.isParasite || c.isDuplicate);
 
         for (let i = 0; i < visibleChildren.length; i++) {
           const childPrefix = isRoot ? "" : prefix + (isLast ? "    " : "│   ");

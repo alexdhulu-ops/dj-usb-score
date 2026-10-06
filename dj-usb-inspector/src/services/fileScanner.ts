@@ -12,7 +12,7 @@ export interface ScanStats {
   parasiteFilesCount: number;
   ripKeywordsCount: number;
   duplicateCount: number;
-  filesForTree: { path: string; isAudio: boolean; isParasite: boolean; isRip: boolean; metadata?: AudioMetadata }[];
+  filesForTree: { path: string; isAudio: boolean; isParasite: boolean; isRip: boolean; isDuplicate?: boolean; metadata?: AudioMetadata }[];
   folderRanks: Record<string, string>;
 }
 
@@ -101,6 +101,8 @@ export async function scanFiles(files: File[], onProgress?: (progress: number, c
     fullAnalysisIndices.add(remainingIndices[i]);
   }
 
+  const folderSignatures = new Map<string, Set<string>>();
+
   let processedCount = 0;
   const CONCURRENCY_LIMIT = 3;
 
@@ -123,25 +125,55 @@ export async function scanFiles(files: File[], onProgress?: (progress: number, c
       const metadata = await parseAudioFile(file, analyzeFull);
       stats.metadataList.push(metadata);
 
+      // Intra-folder Duplicate Detection
+      const fullPath = file.webkitRelativePath || file.name;
+      const folderPath = file.webkitRelativePath
+        ? file.webkitRelativePath.substring(0, file.webkitRelativePath.lastIndexOf('/'))
+        : 'ROOT';
+
+      if (!folderSignatures.has(folderPath)) {
+        folderSignatures.set(folderPath, new Set());
+      }
+
+      const signaturesInFolder = folderSignatures.get(folderPath)!;
+      const fileKey = `${file.name.toLowerCase()}_${file.size}`;
+
+      const treeEntry = stats.filesForTree.find(f => f.path === fullPath);
+      let isDuplicate = false;
+
+      if (signaturesInFolder.has(fileKey)) {
+        isDuplicate = true;
+        stats.duplicateCount++;
+        if (treeEntry) {
+          treeEntry.isDuplicate = true;
+        }
+      } else {
+        signaturesInFolder.add(fileKey);
+      }
+
       // Duration (in seconds from metadata)
-      let durationSec = metadata.duration;
+      let durationSec = Number(metadata.duration);
 
       // Si la durée n'est pas un nombre fini valide, on utilise l'estimation
-      if (!durationSec || isNaN(durationSec) || !isFinite(durationSec)) {
+      if (!durationSec || isNaN(durationSec) || durationSec <= 0) {
         if (file.name.match(/\.(wav|aiff|aif)$/i)) {
-          durationSec = file.size / (1411200 / 8);
+          durationSec = file.size / 176400;
         } else {
-          durationSec = file.size / (320000 / 8); // Hypothèse MP3 320k
+          durationSec = file.size / 40000;
         }
       }
 
       // Filet de sécurité ultime : minimum 300s si le calcul de taille est aberrant
-      if (!durationSec || isNaN(durationSec) || durationSec <= 0) {
+      if (!durationSec || isNaN(durationSec) || durationSec < 30) {
         durationSec = 300;
       }
 
       metadata.duration = durationSec;
-      stats.totalDurationInSeconds += durationSec;
+
+      // ONLY add duration if not a duplicate
+      if (!isDuplicate) {
+        stats.totalDurationInSeconds += durationSec;
+      }
 
       const titleSearchString = `${metadata.title || ''}`.toLowerCase();
       const filenameSearchString = `${file.webkitRelativePath || file.name}`.toLowerCase();
@@ -169,17 +201,14 @@ export async function scanFiles(files: File[], onProgress?: (progress: number, c
       }
 
       // Check for RIP keywords in file name, path, and metadata
-      const fullPath = file.webkitRelativePath || file.name;
       const searchableText = `${fullPath} ${metadata.artist || ''} ${metadata.title || ''}`.toLowerCase();
 
       const hasRipKeyword = RIP_KEYWORDS.some(keyword => searchableText.includes(keyword));
       if (hasRipKeyword) {
         stats.ripKeywordsCount++;
         // Find tree entry and update
-        const treeEntry = stats.filesForTree.find(f => f.path === fullPath);
         if (treeEntry) treeEntry.isRip = true;
       }
-      const treeEntry = stats.filesForTree.find(f => f.path === fullPath);
       if (treeEntry) treeEntry.metadata = metadata;
 
     } catch (e) {
@@ -221,46 +250,8 @@ export async function scanFiles(files: File[], onProgress?: (progress: number, c
     console.warn('Scan timeout reached. Processing partial results.');
   }
 
-  let duplicates = 0;
-  const seenBinaries = new Set<string>();
-  const seenMetadata = new Map<string, number>();
-
-  for (const meta of stats.metadataList) {
-    const duration = meta.duration || 0;
-    let isDuplicate = false;
-
-    if (meta.fileSize !== undefined) {
-      const binKey = `${meta.fileSize}_${Math.round(duration)}`;
-      if (seenBinaries.has(binKey)) {
-        duplicates++;
-        isDuplicate = true;
-      } else {
-        seenBinaries.add(binKey);
-      }
-    }
-
-    if (!isDuplicate && meta.artist && meta.title) {
-      const normArtist = meta.artist.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const normTitle = meta.title.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const metaKey = `${normArtist}_${normTitle}`;
-
-      if (seenMetadata.has(metaKey)) {
-        const prevDuration = seenMetadata.get(metaKey)!;
-        if (Math.abs(duration - prevDuration) <= 2) {
-          duplicates++;
-          isDuplicate = true;
-        }
-      }
-      if (!isDuplicate) {
-        seenMetadata.set(metaKey, duration);
-      }
-    }
-  }
-  stats.duplicateCount = duplicates;
-
-
   // Calculate folder ranks
-  const folders: Record<string, { audioCount: number, losslessCbrCount: number, parasiteCount: number, ripCount: number, shortCount: number, extendedCount: number }> = {};
+  const folders: Record<string, { audioCount: number, losslessCbrCount: number, parasiteCount: number, ripCount: number, duplicateCount: number, shortCount: number, extendedCount: number }> = {};
 
   for (const file of stats.filesForTree) {
     const parts = file.path.split('/');
@@ -268,11 +259,12 @@ export async function scanFiles(files: File[], onProgress?: (progress: number, c
     for (let i = 0; i < parts.length - 1; i++) {
       const folderPath = parts.slice(0, i + 1).join('/');
       if (!folders[folderPath]) {
-        folders[folderPath] = { audioCount: 0, losslessCbrCount: 0, parasiteCount: 0, ripCount: 0, shortCount: 0, extendedCount: 0 };
+        folders[folderPath] = { audioCount: 0, losslessCbrCount: 0, parasiteCount: 0, ripCount: 0, duplicateCount: 0, shortCount: 0, extendedCount: 0 };
       }
 
       if (file.isParasite) folders[folderPath].parasiteCount++;
       if (file.isRip) folders[folderPath].ripCount++;
+      if (file.isDuplicate) folders[folderPath].duplicateCount++;
 
       if (file.isAudio && file.metadata) {
         folders[folderPath].audioCount++;
@@ -302,7 +294,7 @@ export async function scanFiles(files: File[], onProgress?: (progress: number, c
       score += Math.round(40 * (data.losslessCbrCount / data.audioCount));
 
       // Hygiene (30 pts max)
-      let hygiene = 30 - (data.parasiteCount * 10) - (data.ripCount * 10);
+      let hygiene = 30 - (data.parasiteCount * 10) - (data.ripCount * 10) - (data.duplicateCount * 5);
       score += Math.max(0, hygiene);
 
       // Duration (30 pts max)
