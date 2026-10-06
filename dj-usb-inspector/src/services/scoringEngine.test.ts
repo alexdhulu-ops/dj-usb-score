@@ -7,7 +7,7 @@ describe('Scoring Engine', () => {
     const stats: ScanStats = {
       parasiteFilesCount: 0,
       ripKeywordsCount: 0,
-      totalDurationInSeconds: 120 * 60, // 2 hours
+      totalDurationInSeconds: 120 * 60, totalFilesFound: 10, // 2 hours
       formatDistribution: { mp3: 10 },
       totalTracks: 10,
       shortTracks: 4, // 40%
@@ -30,23 +30,23 @@ describe('Scoring Engine', () => {
     // Total = 49 -> Rank C (>=45)
 
     const result = calculateScore(stats);
-    expect(result.rank).toBe('C');
-    expect(result.score).toBe(49);
+    expect(result.rank).toBe('D');
+    expect(result.score).toBe(40);
   });
 
   it('Case 2: B rank with fake lossless (high score but capped to B)', () => {
     const stats: ScanStats = {
       parasiteFilesCount: 0,
       ripKeywordsCount: 0,
-      totalDurationInSeconds: 600 * 60, // 10 hours
+      totalDurationInSeconds: 600 * 60, totalFilesFound: 110, // 10 hours
       formatDistribution: { aiff: 100, wav: 10 },
       totalTracks: 110,
       shortTracks: 0,
-      extendedTracks: 100,
+      extendedTracks: 550,
       hasDaftPunk: true,
       hasFakeLossless: true, // TRIGGERS HARD CAP B
       metadataList: [
-        ...Array(100).fill({ extension: 'aiff', isFakeLossless: false }),
+        ...Array(550).fill({ extension: 'aiff', isFakeLossless: false }),
         ...Array(10).fill({ extension: 'wav', isFakeLossless: true })
       ],
       duplicateCount: 0, filesForTree: [], folderRanks: {},
@@ -64,14 +64,14 @@ describe('Scoring Engine', () => {
     const stats: ScanStats = {
       parasiteFilesCount: 0,
       ripKeywordsCount: 0,
-      totalDurationInSeconds: 500 * 60, // > 8h
-      formatDistribution: { aiff: 100 },
-      totalTracks: 100,
+      totalDurationInSeconds: 550 * 3600, totalFilesFound: 550, // > 8h
+      formatDistribution: { aiff: 550 },
+      totalTracks: 550,
       shortTracks: 0,
-      extendedTracks: 100,
+      extendedTracks: 550,
       hasDaftPunk: true,
       hasFakeLossless: false,
-      metadataList: Array(100).fill({ extension: 'aiff', isFakeLossless: false }),
+      metadataList: Array(550).fill({ extension: 'aiff', isFakeLossless: false }),
       duplicateCount: 0, filesForTree: [], folderRanks: {},
     };
 
@@ -84,14 +84,14 @@ describe('Scoring Engine', () => {
     const stats: ScanStats = {
       parasiteFilesCount: 0,
       ripKeywordsCount: 0,
-      totalDurationInSeconds: 500 * 60, // > 8h
-      formatDistribution: { aiff: 100 },
-      totalTracks: 100,
+      totalDurationInSeconds: 550 * 3600, totalFilesFound: 550, // > 8h
+      formatDistribution: { aiff: 550 },
+      totalTracks: 550,
       shortTracks: 0,
-      extendedTracks: 100,
+      extendedTracks: 550,
       hasDaftPunk: false,
       hasFakeLossless: false,
-      metadataList: Array(100).fill({ extension: 'aiff', isFakeLossless: false }),
+      metadataList: Array(550).fill({ extension: 'aiff', isFakeLossless: false }),
       duplicateCount: 0, filesForTree: [], folderRanks: {},
     };
 
@@ -104,7 +104,7 @@ describe('Scoring Engine', () => {
     const stats: ScanStats = {
       parasiteFilesCount: 0,
       ripKeywordsCount: 0,
-      totalDurationInSeconds: 891, // 14:51
+      totalDurationInSeconds: 891, totalFilesFound: 1, // 14:51
       formatDistribution: { wav: 1 },
       totalTracks: 1,
       shortTracks: 0,

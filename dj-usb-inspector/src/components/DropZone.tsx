@@ -35,7 +35,15 @@ export function DropZone({ onFilesSelected, isScanning, progress, currentScan = 
     const getFilesFromEntry = async (entry: any): Promise<File[]> => {
       if (entry.isFile) {
         return new Promise((resolve) => {
-          entry.file((file: File) => resolve([file]));
+          entry.file((file: File) => {
+            Object.defineProperty(file, 'fullPath', {
+              value: entry.fullPath,
+              writable: true,
+              configurable: true,
+              enumerable: true
+            });
+            resolve([file]);
+          });
         });
       } else if (entry.isDirectory) {
         const dirReader = entry.createReader();
