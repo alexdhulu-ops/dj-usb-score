@@ -7,6 +7,13 @@ export interface ScoreResult {
   score: number;
   rank: Rank;
   verdict: string;
+  details: {
+    purityAndDynamics: number;
+    hardwareCompat: number;
+    extendedCulture: number;
+    setEndurance: number;
+    driveHygiene: number;
+  };
 }
 
 const VERDICTS: Record<Rank, string> = {
@@ -231,5 +238,12 @@ export function calculateScore(stats: ScanStats): ScoreResult {
     score,
     rank,
     verdict: finalVerdict,
+    details: {
+      purityAndDynamics: pureteScore + dynamiqueScore,
+      hardwareCompat: compatScore,
+      extendedCulture: cultureScore,
+      setEndurance: marathonScore,
+      driveHygiene: hygieneScore,
+    }
   };
 }
