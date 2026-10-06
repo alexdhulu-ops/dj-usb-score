@@ -15,6 +15,7 @@ export interface AudioMetadata {
   rms?: number;
   crestFactor?: number;
   fileSize?: number;
+  hasClipping?: boolean;
 }
 
 export async function parseAudioFile(file: File, analyzeFull: boolean = false): Promise<AudioMetadata> {
@@ -29,18 +30,18 @@ export async function parseAudioFile(file: File, analyzeFull: boolean = false): 
   }
 
   let isFakeLossless = false;
-  let dynamicStats: { peak?: number, rms?: number, crestFactor?: number } = {};
+  let dynamicStats: { peak?: number, rms?: number, crestFactor?: number, hasClipping?: boolean } = {};
 
   if (analyzeFull) {
     // For audio files, we extract dynamic range and optionally check fake lossless
     if (extension === 'wav' || extension === 'aiff') {
       const analysis = await analyzeAudioChunk(file, true);
       isFakeLossless = analysis.isFakeLossless;
-      dynamicStats = { peak: analysis.peak, rms: analysis.rms, crestFactor: analysis.crestFactor };
+      dynamicStats = { peak: analysis.peak, rms: analysis.rms, crestFactor: analysis.crestFactor, hasClipping: analysis.hasClipping };
     } else {
       // For other formats, we only check dynamics
       const analysis = await analyzeAudioChunk(file, false);
-      dynamicStats = { peak: analysis.peak, rms: analysis.rms, crestFactor: analysis.crestFactor };
+      dynamicStats = { peak: analysis.peak, rms: analysis.rms, crestFactor: analysis.crestFactor, hasClipping: analysis.hasClipping };
     }
   }
 
@@ -62,10 +63,11 @@ export async function parseAudioFile(file: File, analyzeFull: boolean = false): 
     rms: dynamicStats.rms,
     crestFactor: dynamicStats.crestFactor,
     fileSize: file.size,
+    hasClipping: dynamicStats.hasClipping,
   };
 }
 
-async function analyzeAudioChunk(file: File, checkLossless: boolean): Promise<{ isFakeLossless: boolean, peak?: number, rms?: number, crestFactor?: number }> {
+async function analyzeAudioChunk(file: File, checkLossless: boolean): Promise<{ isFakeLossless: boolean, peak?: number, rms?: number, crestFactor?: number, hasClipping: boolean }> {
   try {
     // To avoid loading massive files into memory, we slice the first 512KB
     // This is usually enough for metadata + some audio frames.
@@ -87,8 +89,12 @@ async function analyzeAudioChunk(file: File, checkLossless: boolean): Promise<{ 
     const channelData = audioBuffer.getChannelData(0);
     let sumSquares = 0;
     let peak = 0;
+    let clipCount = 0;
     for (let i = 0; i < channelData.length; i++) {
       const absVal = Math.abs(channelData[i]);
+      if (absVal >= 0.999) {
+        clipCount++;
+      }
       if (absVal > peak) {
         peak = absVal;
       }
@@ -99,9 +105,10 @@ async function analyzeAudioChunk(file: File, checkLossless: boolean): Promise<{ 
     if (rms > 0) {
       crestFactor = 20 * Math.log10(peak / rms);
     }
+    const hasClipping = (clipCount / channelData.length) > 0.001;
 
     if (!checkLossless) {
-      return { isFakeLossless: false, peak, rms, crestFactor };
+      return { isFakeLossless: false, peak, rms, crestFactor, hasClipping };
     }
 
 
@@ -147,10 +154,10 @@ async function analyzeAudioChunk(file: File, checkLossless: boolean): Promise<{ 
     }
 
     // If it doesn't have high frequency energy, it's a fake lossless (cutoff < 16kHz)
-    return { isFakeLossless: !hasHighFreqEnergy, peak, rms, crestFactor };
+    return { isFakeLossless: !hasHighFreqEnergy, peak, rms, crestFactor, hasClipping };
 
   } catch (error) {
     console.error("Error decoding audio chunk", error);
-    return { isFakeLossless: false };
+    return { isFakeLossless: false, hasClipping: false };
   }
 }

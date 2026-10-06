@@ -44,6 +44,14 @@ export function calculateScore(stats: ScanStats): ScoreResult {
     } else {
       pureteScore = 0;
     }
+
+    // Clipping Penalty
+    const clippingRatio = stats.clippingCount / stats.testedTracksCount;
+    if (clippingRatio > 0) {
+      const penalty = Math.min(5, Math.max(2, Math.round(clippingRatio * 5)));
+      pureteScore -= penalty;
+      pureteScore = Math.max(0, pureteScore);
+    }
   }
 
   score += pureteScore;
@@ -51,8 +59,10 @@ export function calculateScore(stats: ScanStats): ScoreResult {
   // Rule 2: Compatibilité tout-terrain (20 pts)
   // Priorité AIFF et MP3 CBR 320 (20 pts). WAV = 15 pts. FLAC/ALAC/VBR = 5 à 10 pts.
   let compatScore = 0;
+  let exoticRatio = 0;
   if (stats.totalTracks > 0) {
     let totalCompatPts = 0;
+    let exoticCount = 0;
     for (const track of stats.metadataList) {
       if (['aiff', 'aif'].includes(track.extension)) {
         totalCompatPts += 20;
@@ -67,8 +77,18 @@ export function calculateScore(stats: ScanStats): ScoreResult {
       } else {
         totalCompatPts += 0;
       }
+
+      if (track.sampleRate && track.sampleRate !== 44100 && track.sampleRate !== 48000) {
+        exoticCount++;
+      }
     }
     compatScore = Math.round(totalCompatPts / stats.totalTracks);
+    exoticRatio = exoticCount / stats.totalTracks;
+
+    if (exoticRatio > 0.05) {
+      compatScore -= 4;
+      compatScore = Math.max(0, compatScore);
+    }
   }
   score += compatScore;
 
@@ -101,13 +121,13 @@ export function calculateScore(stats: ScanStats): ScoreResult {
   if (stats.totalTracks >= 550 && totalHours >= 55) {
     marathonScore = 20;
   } else if (stats.totalTracks >= 350 && totalHours >= 35) {
-    marathonScore = 17;
+    marathonScore = 18;
   } else if (stats.totalTracks >= 200 && totalHours >= 20) {
-    marathonScore = 14;
+    marathonScore = 15;
   } else if (stats.totalTracks >= 100 && totalHours >= 10) {
-    marathonScore = 10;
-  } else if (stats.totalTracks >= 50 && totalHours >= 5) {
-    marathonScore = 7;
+    marathonScore = 12;
+  } else if (stats.totalTracks >= 40 && totalHours >= 3) {
+    marathonScore = 8;
   } else {
     marathonScore = 5;
   }
@@ -148,6 +168,20 @@ export function calculateScore(stats: ScanStats): ScoreResult {
     else if (parasiteRatio <= 3) hygieneScore += 1;
   } else {
     hygieneScore += 5; // Default
+  }
+
+  // D. Indice de Diversité
+  if (stats.totalTracks > 50) {
+    const uniqueArtists = new Set<string>();
+    for (const track of stats.metadataList) {
+      if (track.artist) {
+        uniqueArtists.add(track.artist);
+      }
+    }
+    const varietyRatio = uniqueArtists.size / stats.totalTracks;
+    if (varietyRatio < 0.1) {
+      hygieneScore -= 3;
+    }
   }
 
   score += hygieneScore;
@@ -256,13 +290,21 @@ export function calculateScore(stats: ScanStats): ScoreResult {
         ];
         warning = msgs[Math.floor(Math.random() * msgs.length)];
       } else if (minCategory === 'AUDIO_PURITY') {
-        const msgs = [
-          "Gare au sonomètre : certaines fréquences semblent avoir été rabotées ou écrasées au rouleau compresseur.",
-          "Tes formes d'onde manquent d'oxygène, le système son va souffrir sur les bas-médiums."
-        ];
-        warning = msgs[Math.floor(Math.random() * msgs.length)];
+        if (stats.clippingCount > 0) {
+          warning = "Certaines crêtes saturent dans le rouge : gare à la distorsion sur le système son du club.";
+        } else {
+          const msgs = [
+            "Gare au sonomètre : certaines fréquences semblent avoir été rabotées ou écrasées au rouleau compresseur.",
+            "Tes formes d'onde manquent d'oxygène, le système son va souffrir sur les bas-médiums."
+          ];
+          warning = msgs[Math.floor(Math.random() * msgs.length)];
+        }
       } else if (minCategory === 'HARDWARE_COMPATIBILITY') {
-        warning = "Certaines régies à l'ancienne risquent de s'étouffer avec tes choix de codecs.";
+        if (exoticRatio > 0.05) {
+          warning = "Des taux d'échantillonnage trop lourds risquent de faire tousser les processeurs de vieilles platines.";
+        } else {
+          warning = "Certaines régies à l'ancienne risquent de s'étouffer avec tes choix de codecs.";
+        }
       }
 
       finalVerdict += " " + warning;

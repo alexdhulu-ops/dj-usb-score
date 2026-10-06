@@ -17,6 +17,7 @@ export interface ScanStats {
   totalFilesFound: number;
   testedTracksCount: number;
   badAudioCount: number;
+  clippingCount: number;
 }
 
 const SUPPORTED_EXTENSIONS = ['mp3', 'wav', 'aiff', 'aif', 'flac', 'alac', 'm4a', 'aac', 'ogg'];
@@ -54,6 +55,7 @@ export async function scanFiles(files: File[], onProgress?: (progress: number, c
     totalFilesFound: files.length,
     testedTracksCount: 0,
     badAudioCount: 0,
+    clippingCount: 0,
   };
 
   const audioFiles: File[] = [];
@@ -221,6 +223,9 @@ export async function scanFiles(files: File[], onProgress?: (progress: number, c
           stats.testedTracksCount++;
           if (metadata.isFakeLossless) {
             stats.badAudioCount++;
+          }
+          if (metadata.hasClipping) {
+            stats.clippingCount++;
           }
         }
 
