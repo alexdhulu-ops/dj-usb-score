@@ -156,6 +156,13 @@ export function calculateScore(stats: ScanStats): ScoreResult {
   // Ensure base score doesn't exceed 100
   score = Math.min(score, 100);
 
+  // Rule 8: Pénalité Doublons
+  let duplicatePenalty = 0;
+  if (stats.duplicateCount >= 1 && stats.duplicateCount <= 2) duplicatePenalty = 2;
+  else if (stats.duplicateCount >= 3 && stats.duplicateCount <= 5) duplicatePenalty = 6;
+  else if (stats.duplicateCount > 5) duplicatePenalty = 12;
+  score = Math.max(0, score - duplicatePenalty);
+
   // Apply Hard Caps
   const shortTracksRatio = stats.totalTracks > 0 ? stats.shortTracks / stats.totalTracks : 0;
 
@@ -211,6 +218,9 @@ export function calculateScore(stats: ScanStats): ScoreResult {
   }
   if (hasCrushedSound) {
     additionalFeedbacks.push("Tes formes d'onde ressemblent à des briques de béton. Laisse respirer tes kicks.");
+  }
+  if (stats.duplicateCount >= 3) {
+    additionalFeedbacks.push("La mémoire flanche : certains morceaux jouent les passe-murailles en double exemplaire.");
   }
 
   if (additionalFeedbacks.length > 0) {

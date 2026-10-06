@@ -18,6 +18,7 @@ describe('Scoring Engine', () => {
         extension: 'mp3',
         isFakeLossless: false, // Overall fake lossless is true
       }),
+      duplicateCount: 0,
     };
 
     // Purity: 0 (fake lossless)
@@ -47,6 +48,7 @@ describe('Scoring Engine', () => {
         ...Array(100).fill({ extension: 'aiff', isFakeLossless: false }),
         ...Array(10).fill({ extension: 'wav', isFakeLossless: true })
       ],
+      duplicateCount: 0,
     };
 
     const result = calculateScore(stats);
@@ -69,6 +71,7 @@ describe('Scoring Engine', () => {
       hasDaftPunk: true,
       hasFakeLossless: false,
       metadataList: Array(100).fill({ extension: 'aiff', isFakeLossless: false }),
+      duplicateCount: 0,
     };
 
     const result = calculateScore(stats);
@@ -88,6 +91,7 @@ describe('Scoring Engine', () => {
       hasDaftPunk: false,
       hasFakeLossless: false,
       metadataList: Array(100).fill({ extension: 'aiff', isFakeLossless: false }),
+      duplicateCount: 0,
     };
 
     const result = calculateScore(stats);
