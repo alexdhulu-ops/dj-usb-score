@@ -5,7 +5,7 @@ export interface ScanStats {
   formatDistribution: Record<string, number>;
   totalTracks: number;
   shortTracks: number; // < 3 mins
-  extendedTracks: number; // 4:30 - 9:00
+  extendedTracks: number; // 4:30 - 15:00
   hasDaftPunk: boolean;
   hasFakeLossless: boolean;
   metadataList: AudioMetadata[];
@@ -94,9 +94,14 @@ export async function scanFiles(files: File[], onProgress?: (progress: number) =
       const durationSec = metadata.duration || 0;
       stats.totalDurationMs += durationSec * 1000;
 
+      const titleSearchString = `${metadata.title || ''}`.toLowerCase();
+      const filenameSearchString = `${file.webkitRelativePath || file.name}`.toLowerCase();
+      const clubKeywords = ['(extended mix)', '(original mix)', '(club mix)', '(club version)', '(12" mix)', '(dub mix)'];
+      const hasClubKeyword = clubKeywords.some(keyword => titleSearchString.includes(keyword) || filenameSearchString.includes(keyword));
+
       if (durationSec > 0 && durationSec < 180) { // < 3 mins
         stats.shortTracks++;
-      } else if (durationSec >= 270 && durationSec <= 540) { // 4:30 - 9:00
+      } else if ((durationSec >= 270 && durationSec <= 900) || hasClubKeyword) { // 4:30 - 15:00
         stats.extendedTracks++;
       }
 
@@ -196,8 +201,12 @@ export async function scanFiles(files: File[], onProgress?: (progress: number) =
         }
 
         const duration = file.metadata.duration || 0;
+        const titleSearchString = `${file.metadata.title || ''}`.toLowerCase();
+        const filenameSearchString = `${file.path}`.toLowerCase();
+        const clubKeywords = ['(extended mix)', '(original mix)', '(club mix)', '(club version)', '(12" mix)', '(dub mix)'];
+        const hasClubKeyword = clubKeywords.some(keyword => titleSearchString.includes(keyword) || filenameSearchString.includes(keyword));
         if (duration > 0 && duration < 180) folders[folderPath].shortCount++;
-        else if (duration >= 270 && duration <= 540) folders[folderPath].extendedCount++;
+        else if ((duration >= 270 && duration <= 900) || hasClubKeyword) folders[folderPath].extendedCount++;
       }
     }
   }

@@ -86,15 +86,16 @@ export function calculateScore(stats: ScanStats): ScoreResult {
     const extendedRatio = stats.extendedTracks / stats.totalTracks;
     const shortRatio = stats.shortTracks / stats.totalTracks;
 
-    if (shortRatio > 0.5) {
-      cultureScore = 0; // Saturé de pistes courtes
-    } else {
-      // 20 pts si la majorité (>= 50%) sont extended. Sinon proportionnel.
-      if (extendedRatio >= 0.5) {
-        cultureScore = 20;
-      } else {
-        cultureScore = Math.round((extendedRatio / 0.5) * 20);
-      }
+    if (shortRatio === 1 || extendedRatio === 0) {
+      cultureScore = 0; // Saturé de pistes courtes ou aucune piste extended
+    } else if (extendedRatio >= 0.7) {
+      cultureScore = 20;
+    } else if (extendedRatio >= 0.5) {
+      cultureScore = 15;
+    } else if (extendedRatio >= 0.3) {
+      cultureScore = 10;
+    } else if (extendedRatio > 0) {
+      cultureScore = 5;
     }
   }
   score += cultureScore;
