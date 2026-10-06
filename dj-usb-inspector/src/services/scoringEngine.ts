@@ -101,15 +101,16 @@ export function calculateScore(stats: ScanStats): ScoreResult {
   score += cultureScore;
 
   // Rule 4: Marathon (20 pts max, progressif)
-  const totalMinutes = stats.totalDurationMs / (1000 * 60);
+  const totalHours = stats.totalDurationInSeconds / 3600;
+  const totalMinutes = stats.totalDurationInSeconds / 60;
   let marathonScore = 0;
-  if (totalMinutes >= 360) {
+  if (totalHours >= 6) { // 6 hours = 21 600 seconds
     marathonScore = 20;
-  } else if (totalMinutes >= 240) {
+  } else if (totalHours >= 4) { // 4 hours
     marathonScore = 17;
-  } else if (totalMinutes >= 120) {
+  } else if (totalHours >= 2) { // 2 hours
     marathonScore = 14;
-  } else if (totalMinutes >= 60) {
+  } else if (totalHours >= 1) { // 1 hour
     marathonScore = 10;
   } else {
     marathonScore = 5;

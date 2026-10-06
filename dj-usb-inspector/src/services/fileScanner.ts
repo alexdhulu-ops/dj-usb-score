@@ -1,7 +1,7 @@
 import { parseAudioFile, type AudioMetadata } from './audioAnalysis';
 
 export interface ScanStats {
-  totalDurationMs: number;
+  totalDurationInSeconds: number;
   formatDistribution: Record<string, number>;
   totalTracks: number;
   shortTracks: number; // < 3 mins
@@ -35,7 +35,7 @@ function isDaftPunk(metadata: AudioMetadata): boolean {
 
 export async function scanFiles(files: File[], onProgress?: (progress: number, current: number, total: number) => void): Promise<ScanStats> {
   const stats: ScanStats = {
-    totalDurationMs: 0,
+    totalDurationInSeconds: 0,
     formatDistribution: {},
     totalTracks: 0,
     shortTracks: 0,
@@ -125,7 +125,7 @@ export async function scanFiles(files: File[], onProgress?: (progress: number, c
 
       // Duration (in seconds from metadata)
       const durationSec = metadata.duration || 0;
-      stats.totalDurationMs += durationSec * 1000;
+      stats.totalDurationInSeconds += durationSec;
 
       const titleSearchString = `${metadata.title || ''}`.toLowerCase();
       const filenameSearchString = `${file.webkitRelativePath || file.name}`.toLowerCase();

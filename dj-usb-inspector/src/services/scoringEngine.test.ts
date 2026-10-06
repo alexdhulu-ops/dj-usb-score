@@ -7,7 +7,7 @@ describe('Scoring Engine', () => {
     const stats: ScanStats = {
       parasiteFilesCount: 0,
       ripKeywordsCount: 0,
-      totalDurationMs: 120 * 60 * 1000, // 2 hours
+      totalDurationInSeconds: 120 * 60, // 2 hours
       formatDistribution: { mp3: 10 },
       totalTracks: 10,
       shortTracks: 4, // 40%
@@ -38,7 +38,7 @@ describe('Scoring Engine', () => {
     const stats: ScanStats = {
       parasiteFilesCount: 0,
       ripKeywordsCount: 0,
-      totalDurationMs: 600 * 60 * 1000, // 10 hours
+      totalDurationInSeconds: 600 * 60, // 10 hours
       formatDistribution: { aiff: 100, wav: 10 },
       totalTracks: 110,
       shortTracks: 0,
@@ -64,7 +64,7 @@ describe('Scoring Engine', () => {
     const stats: ScanStats = {
       parasiteFilesCount: 0,
       ripKeywordsCount: 0,
-      totalDurationMs: 500 * 60 * 1000, // > 8h
+      totalDurationInSeconds: 500 * 60, // > 8h
       formatDistribution: { aiff: 100 },
       totalTracks: 100,
       shortTracks: 0,
@@ -84,7 +84,7 @@ describe('Scoring Engine', () => {
     const stats: ScanStats = {
       parasiteFilesCount: 0,
       ripKeywordsCount: 0,
-      totalDurationMs: 500 * 60 * 1000, // > 8h
+      totalDurationInSeconds: 500 * 60, // > 8h
       formatDistribution: { aiff: 100 },
       totalTracks: 100,
       shortTracks: 0,
@@ -104,7 +104,7 @@ describe('Scoring Engine', () => {
     const stats: ScanStats = {
       parasiteFilesCount: 0,
       ripKeywordsCount: 0,
-      totalDurationMs: 891 * 1000, // 14:51
+      totalDurationInSeconds: 891, // 14:51
       formatDistribution: { wav: 1 },
       totalTracks: 1,
       shortTracks: 0,
