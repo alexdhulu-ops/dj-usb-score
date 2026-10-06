@@ -11,6 +11,7 @@ export interface ScanStats {
   metadataList: AudioMetadata[];
   parasiteFilesCount: number;
   ripKeywordsCount: number;
+  duplicateCount: number;
 }
 
 const SUPPORTED_EXTENSIONS = ['mp3', 'wav', 'aiff', 'aif', 'flac', 'alac', 'm4a', 'aac', 'ogg'];
@@ -42,6 +43,7 @@ export async function scanFiles(files: File[], onProgress?: (progress: number) =
     metadataList: [],
     parasiteFilesCount: 0,
     ripKeywordsCount: 0,
+    duplicateCount: 0,
   };
 
   const audioFiles: File[] = [];
@@ -109,6 +111,43 @@ export async function scanFiles(files: File[], onProgress?: (progress: number) =
       console.warn(`Error scanning file ${file.name}`, e);
     }
   }
+
+  let duplicates = 0;
+  const seenBinaries = new Set<string>();
+  const seenMetadata = new Map<string, number>();
+
+  for (const meta of stats.metadataList) {
+    const duration = meta.duration || 0;
+    let isDuplicate = false;
+
+    if (meta.fileSize !== undefined) {
+      const binKey = `${meta.fileSize}_${Math.round(duration)}`;
+      if (seenBinaries.has(binKey)) {
+        duplicates++;
+        isDuplicate = true;
+      } else {
+        seenBinaries.add(binKey);
+      }
+    }
+
+    if (!isDuplicate && meta.artist && meta.title) {
+      const normArtist = meta.artist.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const normTitle = meta.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const metaKey = `${normArtist}_${normTitle}`;
+
+      if (seenMetadata.has(metaKey)) {
+        const prevDuration = seenMetadata.get(metaKey)!;
+        if (Math.abs(duration - prevDuration) <= 2) {
+          duplicates++;
+          isDuplicate = true;
+        }
+      }
+      if (!isDuplicate) {
+        seenMetadata.set(metaKey, duration);
+      }
+    }
+  }
+  stats.duplicateCount = duplicates;
 
   if (onProgress) {
     onProgress(100);

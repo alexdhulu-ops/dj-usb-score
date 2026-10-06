@@ -14,6 +14,7 @@ export interface AudioMetadata {
   peak?: number;
   rms?: number;
   crestFactor?: number;
+  fileSize?: number;
 }
 
 export async function parseAudioFile(file: File): Promise<AudioMetadata> {
@@ -58,6 +59,7 @@ export async function parseAudioFile(file: File): Promise<AudioMetadata> {
     peak: dynamicStats.peak,
     rms: dynamicStats.rms,
     crestFactor: dynamicStats.crestFactor,
+    fileSize: file.size,
   };
 }
 
