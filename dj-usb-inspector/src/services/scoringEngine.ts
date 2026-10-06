@@ -101,17 +101,20 @@ export function calculateScore(stats: ScanStats): ScoreResult {
   score += cultureScore;
 
   // Rule 4: Marathon (20 pts max, progressif)
+  // Double condition cumulative : totalUniqueTracks and totalUniqueHours
   const totalHours = stats.totalDurationInSeconds / 3600;
   const totalMinutes = stats.totalDurationInSeconds / 60;
   let marathonScore = 0;
-  if (totalHours >= 6) { // 6 hours = 21 600 seconds
+  if (stats.totalTracks >= 550 && totalHours >= 55) {
     marathonScore = 20;
-  } else if (totalHours >= 4) { // 4 hours
+  } else if (stats.totalTracks >= 350 && totalHours >= 35) {
     marathonScore = 17;
-  } else if (totalHours >= 2) { // 2 hours
+  } else if (stats.totalTracks >= 200 && totalHours >= 20) {
     marathonScore = 14;
-  } else if (totalHours >= 1) { // 1 hour
+  } else if (stats.totalTracks >= 100 && totalHours >= 10) {
     marathonScore = 10;
+  } else if (stats.totalTracks >= 50 && totalHours >= 5) {
+    marathonScore = 7;
   } else {
     marathonScore = 5;
   }
@@ -215,6 +218,14 @@ export function calculateScore(stats: ScanStats): ScoreResult {
   }
 
   let finalVerdict = VERDICTS[rank];
+
+  console.log("=== VIBE CHECK AUDIT ===", {
+    totalFilesFound: stats.totalFilesFound,
+    duplicatesDetected: stats.duplicateCount,
+    uniqueAudioTracks: stats.totalTracks,
+    totalUniqueHours: totalHours.toFixed(2),
+    enduranceScoreAwarded: marathonScore
+  });
 
   if (['A', 'B', 'C', 'D'].includes(rank)) {
     const ratios: Record<string, number> = {

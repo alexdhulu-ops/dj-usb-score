@@ -14,6 +14,7 @@ export interface ScanStats {
   duplicateCount: number;
   filesForTree: { path: string; isAudio: boolean; isParasite: boolean; isRip: boolean; isDuplicate?: boolean; metadata?: AudioMetadata }[];
   folderRanks: Record<string, string>;
+  totalFilesFound: number;
 }
 
 const SUPPORTED_EXTENSIONS = ['mp3', 'wav', 'aiff', 'aif', 'flac', 'alac', 'm4a', 'aac', 'ogg'];
@@ -48,6 +49,7 @@ export async function scanFiles(files: File[], onProgress?: (progress: number, c
     duplicateCount: 0,
     filesForTree: [],
     folderRanks: {},
+    totalFilesFound: files.length,
   };
 
   const audioFiles: File[] = [];
@@ -69,15 +71,16 @@ export async function scanFiles(files: File[], onProgress?: (progress: number, c
       isAudio = true;
     }
 
+    const fullPathRaw = (file as any).fullPath || file.webkitRelativePath || file.name;
+    const cleanPath = fullPathRaw.replace(/^\//, '');
+
     stats.filesForTree.push({
-      path: file.webkitRelativePath || file.name,
+      path: cleanPath,
       isAudio,
       isParasite,
       isRip: false,
     });
   }
-
-  stats.totalTracks = audioFiles.length;
 
   // Determine which files will undergo full analysis (max 8 files total, prioritize .wav / .aiff)
   const fullAnalysisIndices = new Set<number>();
@@ -122,33 +125,48 @@ export async function scanFiles(files: File[], onProgress?: (progress: number, c
 
     try {
       const analyzeFull = fullAnalysisIndices.has(i);
-      const metadata = await parseAudioFile(file, analyzeFull);
-      stats.metadataList.push(metadata);
-
       // Intra-folder Duplicate Detection
-      const fullPath = file.webkitRelativePath || file.name;
-      const folderPath = file.webkitRelativePath
-        ? file.webkitRelativePath.substring(0, file.webkitRelativePath.lastIndexOf('/'))
-        : 'ROOT';
+      const fullPathRaw = (file as any).fullPath || file.webkitRelativePath || file.name;
+      const fullPath = fullPathRaw.replace(/^\//, '');
+      const lastSlashIdx = fullPath.lastIndexOf('/');
+      const folderPath = lastSlashIdx !== -1 ? fullPath.substring(0, lastSlashIdx) : 'ROOT';
 
       if (!folderSignatures.has(folderPath)) {
         folderSignatures.set(folderPath, new Set());
       }
 
       const signaturesInFolder = folderSignatures.get(folderPath)!;
-      const fileKey = `${file.name.toLowerCase()}_${file.size}`;
+
+      const normalizedName = file.name.toLowerCase()
+        .replace(/\.(mp3|wav|aiff|aif|flac|alac|m4a|aac|ogg)$/i, '')
+        .replace(/[\s\-_()]/g, '')
+        .replace(/(copy|\d+)$/g, '');
+
+      const sizeKey = `size:${file.size}`;
+      const nameKey = `name:${normalizedName}`;
 
       const treeEntry = stats.filesForTree.find(f => f.path === fullPath);
       let isDuplicate = false;
 
-      if (signaturesInFolder.has(fileKey)) {
+      if (signaturesInFolder.has(sizeKey) || signaturesInFolder.has(nameKey)) {
         isDuplicate = true;
         stats.duplicateCount++;
         if (treeEntry) {
           treeEntry.isDuplicate = true;
         }
       } else {
-        signaturesInFolder.add(fileKey);
+        signaturesInFolder.add(sizeKey);
+        signaturesInFolder.add(nameKey);
+      }
+
+      if (!isDuplicate) {
+        stats.totalTracks++;
+      }
+
+      const metadata = await parseAudioFile(file, analyzeFull);
+
+      if (!isDuplicate) {
+        stats.metadataList.push(metadata);
       }
 
       // Duration (in seconds from metadata)
@@ -170,34 +188,35 @@ export async function scanFiles(files: File[], onProgress?: (progress: number, c
 
       metadata.duration = durationSec;
 
-      // ONLY add duration if not a duplicate
       if (!isDuplicate) {
         stats.totalDurationInSeconds += durationSec;
       }
 
       const titleSearchString = `${metadata.title || ''}`.toLowerCase();
-      const filenameSearchString = `${file.webkitRelativePath || file.name}`.toLowerCase();
+      const filenameSearchString = `${fullPath}`.toLowerCase();
       const clubKeywords = ['(extended mix)', '(original mix)', '(club mix)', '(club version)', '(12" mix)', '(dub mix)'];
       const hasClubKeyword = clubKeywords.some(keyword => titleSearchString.includes(keyword) || filenameSearchString.includes(keyword));
 
-      if (durationSec > 0 && durationSec < 180) { // < 3 mins
-        stats.shortTracks++;
-      } else if ((durationSec >= 270 && durationSec <= 900) || hasClubKeyword) { // 4:30 - 15:00
-        stats.extendedTracks++;
-      }
+      if (!isDuplicate) {
+        if (durationSec > 0 && durationSec < 180) { // < 3 mins
+          stats.shortTracks++;
+        } else if ((durationSec >= 270 && durationSec <= 900) || hasClubKeyword) { // 4:30 - 15:00
+          stats.extendedTracks++;
+        }
 
-      // Formatting
-      const ext = metadata.extension;
-      stats.formatDistribution[ext] = (stats.formatDistribution[ext] || 0) + 1;
+        // Formatting
+        const ext = metadata.extension;
+        stats.formatDistribution[ext] = (stats.formatDistribution[ext] || 0) + 1;
 
-      // Fake lossless
-      if (metadata.isFakeLossless) {
-        stats.hasFakeLossless = true;
-      }
+        // Fake lossless
+        if (metadata.isFakeLossless) {
+          stats.hasFakeLossless = true;
+        }
 
-      // Daft Punk Easter Egg
-      if (!stats.hasDaftPunk && isDaftPunk(metadata)) {
-        stats.hasDaftPunk = true;
+        // Daft Punk Easter Egg
+        if (!stats.hasDaftPunk && isDaftPunk(metadata)) {
+          stats.hasDaftPunk = true;
+        }
       }
 
       // Check for RIP keywords in file name, path, and metadata
