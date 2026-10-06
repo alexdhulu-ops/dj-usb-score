@@ -237,15 +237,17 @@ function FormatBreakdown({ stats }: { stats: ScanStats }) {
 function DriveMap({ stats }: { stats: ScanStats }) {
   const treeLines = useMemo(() => {
     // Build tree
-    const root: any = { name: 'ROOT', children: {}, audioCount: 0, isFile: false, isParasite: false };
+    const root: any = { name: 'ROOT', children: {}, audioCount: 0, isFile: false, isParasite: false, fullPath: 'ROOT' };
 
     for (const file of stats.filesForTree) {
       const parts = file.path.split('/');
       let current = root;
+      let pathAccum = '';
 
       for (let i = 0; i < parts.length; i++) {
         const part = parts[i];
         const isFile = (i === parts.length - 1);
+        pathAccum = pathAccum ? `${pathAccum}/${part}` : part;
 
         if (!current.children[part]) {
           current.children[part] = {
@@ -254,7 +256,8 @@ function DriveMap({ stats }: { stats: ScanStats }) {
             audioCount: 0,
             isFile,
             isParasite: isFile ? file.isParasite : false,
-            isAudio: isFile ? file.isAudio : false
+            isAudio: isFile ? file.isAudio : false,
+            fullPath: pathAccum
           };
         }
 
@@ -275,7 +278,8 @@ function DriveMap({ stats }: { stats: ScanStats }) {
 
       let lineStr = "";
       if (isRoot) {
-        lineStr = "ROOT/";
+        const rootRank = stats.folderRanks && stats.folderRanks[node.fullPath] ? ` [${stats.folderRanks[node.fullPath]}]` : '';
+        lineStr = `ROOT/${rootRank}`;
       } else {
         const marker = isLast ? "└── " : "├── ";
         lineStr = prefix + marker;
@@ -288,7 +292,9 @@ function DriveMap({ stats }: { stats: ScanStats }) {
              return;
           }
         } else {
-           lineStr += `${node.name}/`;
+           lineStr += `📁 ${node.name}/`;
+           const rank = stats.folderRanks && stats.folderRanks[node.fullPath] ? ` [${stats.folderRanks[node.fullPath]}]` : '';
+           lineStr += rank;
            if (node.audioCount > 0) {
              lineStr += ` (${node.audioCount} tracks)`;
            }
@@ -297,7 +303,7 @@ function DriveMap({ stats }: { stats: ScanStats }) {
 
       if (node.isFile && node.isParasite) {
          // Return an object to know we need to highlight this line
-         lines.push(`$$RED$$${lineStr}`);
+         lines.push(`$RED$${lineStr}`);
       } else {
          lines.push(lineStr);
       }
@@ -314,16 +320,22 @@ function DriveMap({ stats }: { stats: ScanStats }) {
       }
     }
 
+    // Since we parse paths where the first part is a directory, 'ROOT' might not be correct if we want to show folder ranks for the root folder.
+    // Actually, stats.folderRanks keys are exactly the path prefixes.
+    // E.g. "MyFolder", "MyFolder/TechHouse".
+    // For "ROOT", there's no "ROOT" path in stats.folderRanks unless the first folder is named ROOT.
+    // So 'ROOT/' rank will be empty, but that's fine.
+
     traverse(root, "", true, 0);
     return lines;
 
-  }, [stats.filesForTree]);
+  }, [stats.filesForTree, stats.folderRanks]);
 
   return (
     <div className="bg-[#0a0a0a] border border-[#333] p-4 font-mono text-base sm:text-lg overflow-x-auto whitespace-pre rounded">
       {treeLines.map((line, idx) => {
-        if (line.startsWith('$$RED$$')) {
-           return <div key={idx} className="text-dj-red">{line.replace('$$RED$$', '')}</div>;
+        if (line.startsWith('$RED$')) {
+           return <div key={idx} className="text-dj-red">{line.replace('$RED$', '')}</div>;
         }
         return <div key={idx} className="text-gray-300">{line}</div>;
       })}
