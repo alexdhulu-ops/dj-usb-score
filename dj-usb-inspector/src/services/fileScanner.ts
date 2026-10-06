@@ -12,7 +12,8 @@ export interface ScanStats {
   parasiteFilesCount: number;
   ripKeywordsCount: number;
   duplicateCount: number;
-  filesForTree: { path: string; isAudio: boolean; isParasite: boolean }[];
+  filesForTree: { path: string; isAudio: boolean; isParasite: boolean; isRip: boolean; metadata?: AudioMetadata }[];
+  folderRanks: Record<string, string>;
 }
 
 const SUPPORTED_EXTENSIONS = ['mp3', 'wav', 'aiff', 'aif', 'flac', 'alac', 'm4a', 'aac', 'ogg'];
@@ -46,6 +47,7 @@ export async function scanFiles(files: File[], onProgress?: (progress: number) =
     ripKeywordsCount: 0,
     duplicateCount: 0,
     filesForTree: [],
+    folderRanks: {},
   };
 
   const audioFiles: File[] = [];
@@ -71,6 +73,7 @@ export async function scanFiles(files: File[], onProgress?: (progress: number) =
       path: file.webkitRelativePath || file.name,
       isAudio,
       isParasite,
+      isRip: false,
     });
   }
 
@@ -118,7 +121,12 @@ export async function scanFiles(files: File[], onProgress?: (progress: number) =
       const hasRipKeyword = RIP_KEYWORDS.some(keyword => searchableText.includes(keyword));
       if (hasRipKeyword) {
         stats.ripKeywordsCount++;
+        // Find tree entry and update
+        const treeEntry = stats.filesForTree.find(f => f.path === fullPath);
+        if (treeEntry) treeEntry.isRip = true;
       }
+      const treeEntry = stats.filesForTree.find(f => f.path === fullPath);
+      if (treeEntry) treeEntry.metadata = metadata;
 
     } catch (e) {
       console.warn(`Error scanning file ${file.name}`, e);
@@ -161,6 +169,73 @@ export async function scanFiles(files: File[], onProgress?: (progress: number) =
     }
   }
   stats.duplicateCount = duplicates;
+
+
+  // Calculate folder ranks
+  const folders: Record<string, { audioCount: number, losslessCbrCount: number, parasiteCount: number, ripCount: number, shortCount: number, extendedCount: number }> = {};
+
+  for (const file of stats.filesForTree) {
+    const parts = file.path.split('/');
+    // For each folder in the path (excluding the file itself if it's the last part)
+    for (let i = 0; i < parts.length - 1; i++) {
+      const folderPath = parts.slice(0, i + 1).join('/');
+      if (!folders[folderPath]) {
+        folders[folderPath] = { audioCount: 0, losslessCbrCount: 0, parasiteCount: 0, ripCount: 0, shortCount: 0, extendedCount: 0 };
+      }
+
+      if (file.isParasite) folders[folderPath].parasiteCount++;
+      if (file.isRip) folders[folderPath].ripCount++;
+
+      if (file.isAudio && file.metadata) {
+        folders[folderPath].audioCount++;
+        const ext = file.metadata.extension;
+        if (['wav', 'aiff', 'aif', 'flac', 'alac'].includes(ext)) {
+          folders[folderPath].losslessCbrCount++;
+        } else if (ext === 'mp3' && file.metadata.bitrate && file.metadata.bitrate >= 320000) {
+          folders[folderPath].losslessCbrCount++;
+        }
+
+        const duration = file.metadata.duration || 0;
+        if (duration > 0 && duration < 180) folders[folderPath].shortCount++;
+        else if (duration >= 270 && duration <= 540) folders[folderPath].extendedCount++;
+      }
+    }
+  }
+
+  for (const [folderPath, data] of Object.entries(folders)) {
+    if (data.audioCount > 0) {
+      let score = 0;
+
+      // Purity (40 pts max)
+      score += Math.round(40 * (data.losslessCbrCount / data.audioCount));
+
+      // Hygiene (30 pts max)
+      let hygiene = 30 - (data.parasiteCount * 10) - (data.ripCount * 10);
+      score += Math.max(0, hygiene);
+
+      // Duration (30 pts max)
+      const shortRatio = data.shortCount / data.audioCount;
+      const extendedRatio = data.extendedCount / data.audioCount;
+      if (shortRatio > 0.5) {
+        score += 0;
+      } else {
+        if (extendedRatio >= 0.5) score += 30;
+        else score += Math.round((extendedRatio / 0.5) * 30);
+      }
+
+      score = Math.min(score, 100);
+
+      let rank = 'D';
+      if (score >= 95) rank = 'S+';
+      else if (score >= 85) rank = 'S';
+      else if (score >= 75) rank = 'A';
+      else if (score >= 60) rank = 'B';
+      else if (score >= 45) rank = 'C';
+      else rank = 'D';
+
+      stats.folderRanks[folderPath] = rank;
+    }
+  }
 
   if (onProgress) {
     onProgress(100);
