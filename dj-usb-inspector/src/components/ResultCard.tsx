@@ -1,16 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { type ScoreResult } from '../services/scoringEngine';
+import { type ScanStats } from '../services/fileScanner';
 import { PixelCard } from './ui/PixelCard';
 import { PixelButton } from './ui/PixelButton';
 import { RankBadge } from './RankBadge';
 
 interface ResultCardProps {
   result: ScoreResult;
+  stats: ScanStats;
   onReset: () => void;
 }
 
-export function ResultCard({ result, onReset }: ResultCardProps) {
+export function ResultCard({ result, stats, onReset }: ResultCardProps) {
   const [displayedScore, setDisplayedScore] = useState(0);
+  const [showTelemetry, setShowTelemetry] = useState(false);
 
   useEffect(() => {
     let start = 0;
@@ -96,8 +99,46 @@ export function ResultCard({ result, onReset }: ResultCardProps) {
           </p>
         </div>
 
+        <div className="w-full mt-4 flex justify-center">
+          <PixelButton
+            variant="secondary"
+            className="text-xs py-2 w-full text-center"
+            onClick={() => setShowTelemetry(!showTelemetry)}
+          >
+            [ {showTelemetry ? '- HIDE' : '+ EXPAND'} TELEMETRY / DRIVE MAP ]
+          </PixelButton>
+        </div>
+
+        {showTelemetry && (
+          <div className="w-full flex flex-col space-y-8 animate-in fade-in duration-300 border-t-2 border-[#333] pt-6 font-vt323">
+
+            {/* Sub-scores */}
+            <div className="w-full space-y-4">
+              <h3 className="text-dj-cyan font-press-start text-xs tracking-wider mb-2">METRICS:</h3>
+              <Gauge label="AUDIO PURITY & DYNAMICS" score={result.details.purityAndDynamics} max={25} />
+              <Gauge label="HARDWARE COMPATIBILITY" score={result.details.hardwareCompat} max={20} />
+              <Gauge label="EXTENDED CLUB CULTURE" score={result.details.extendedCulture} max={20} />
+              <Gauge label="SET ENDURANCE" score={result.details.setEndurance} max={20} />
+              <Gauge label="DRIVE HYGIENE & PURITY" score={result.details.driveHygiene} max={15} />
+            </div>
+
+            {/* Format Breakdown */}
+            <div className="w-full space-y-2">
+              <h3 className="text-dj-cyan font-press-start text-xs tracking-wider mb-2">FORMAT DISTRIBUTION:</h3>
+              <FormatBreakdown stats={stats} />
+            </div>
+
+            {/* Drive Map */}
+            <div className="w-full space-y-2">
+              <h3 className="text-dj-cyan font-press-start text-xs tracking-wider mb-2">DRIVE MAP:</h3>
+              <DriveMap stats={stats} />
+            </div>
+
+          </div>
+        )}
+
         {/* Footer info (Timestamp & Checksum) */}
-        <div className="w-full flex justify-between items-center text-gray-500 font-vt323 text-lg border-t-2 border-[#333] pt-4">
+        <div className="w-full flex justify-between items-center text-gray-500 font-vt323 text-lg border-t-2 border-[#333] pt-4 mt-4">
           <span>{dateStr}</span>
           <span className="tracking-widest">CHK:{checksum}</span>
         </div>
@@ -112,6 +153,180 @@ export function ResultCard({ result, onReset }: ResultCardProps) {
           </PixelButton>
         </div>
       </PixelCard>
+    </div>
+  );
+}
+
+// Sub-components for Telemetry
+
+function Gauge({ label, score, max }: { label: string, score: number, max: number }) {
+  const percentage = (score / max) * 100;
+
+  let colorClass = 'text-dj-green';
+  if (percentage < 50) colorClass = 'text-dj-red animate-pulse';
+  else if (percentage <= 80) colorClass = 'text-amber-500';
+
+  const totalBlocks = 10;
+  const filledBlocks = Math.round((percentage / 100) * totalBlocks);
+  const emptyBlocks = totalBlocks - filledBlocks;
+
+  const bar = `[${'█'.repeat(filledBlocks)}${'░'.repeat(emptyBlocks)}]`;
+
+  return (
+    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center text-lg">
+      <span className="text-gray-300">{label}</span>
+      <span className={`font-mono ${colorClass} tracking-widest`}>
+        {bar} {score}/{max}
+      </span>
+    </div>
+  );
+}
+
+function FormatBreakdown({ stats }: { stats: ScanStats }) {
+  const distribution = useMemo(() => {
+    let aiff = 0, wav = 0, flac = 0, mp3cbr = 0, mp3vbr = 0, other = 0;
+
+    for (const meta of stats.metadataList) {
+      const ext = meta.extension.toLowerCase();
+      if (ext === 'aiff' || ext === 'aif') aiff++;
+      else if (ext === 'wav') wav++;
+      else if (ext === 'flac' || ext === 'alac') flac++;
+      else if (ext === 'mp3') {
+        if (meta.bitrate && meta.bitrate >= 320000) mp3cbr++;
+        else mp3vbr++;
+      } else {
+        other++;
+      }
+    }
+
+    const total = Math.max(1, stats.metadataList.length);
+
+    return [
+      { label: 'AIFF', count: aiff, color: 'bg-dj-green', textClass: 'text-dj-green' },
+      { label: 'WAV', count: wav, color: 'bg-dj-cyan', textClass: 'text-dj-cyan' },
+      { label: 'FLAC', count: flac, color: 'bg-blue-400', textClass: 'text-blue-400' },
+      { label: 'MP3 CBR', count: mp3cbr, color: 'bg-amber-400', textClass: 'text-amber-400' },
+      { label: 'MP3 VBR', count: mp3vbr, color: 'bg-dj-orange', textClass: 'text-dj-orange' },
+      { label: 'OTHER', count: other, color: 'bg-dj-red', textClass: 'text-dj-red' },
+    ].filter(item => item.count > 0).map(item => ({
+      ...item,
+      percentage: Math.round((item.count / total) * 100)
+    }));
+  }, [stats]);
+
+  if (distribution.length === 0) return <div className="text-gray-500">NO VALID AUDIO DETECTED</div>;
+
+  return (
+    <div className="w-full flex flex-col gap-2 mt-2">
+      <div className="w-full h-4 flex bg-[#222]">
+        {distribution.map((item, idx) => (
+          <div key={idx} className={`h-full ${item.color}`} style={{ width: `${item.percentage}%` }} />
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-base">
+        {distribution.map((item, idx) => (
+          <span key={idx} className={item.textClass}>
+            {item.label}: {item.percentage}%
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DriveMap({ stats }: { stats: ScanStats }) {
+  const treeLines = useMemo(() => {
+    // Build tree
+    const root: any = { name: 'ROOT', children: {}, audioCount: 0, isFile: false, isParasite: false };
+
+    for (const file of stats.filesForTree) {
+      const parts = file.path.split('/');
+      let current = root;
+
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        const isFile = (i === parts.length - 1);
+
+        if (!current.children[part]) {
+          current.children[part] = {
+            name: part,
+            children: {},
+            audioCount: 0,
+            isFile,
+            isParasite: isFile ? file.isParasite : false,
+            isAudio: isFile ? file.isAudio : false
+          };
+        }
+
+        if (file.isAudio) {
+           current.children[part].audioCount++;
+        }
+
+        current = current.children[part];
+      }
+    }
+
+    const lines: string[] = [];
+
+    function traverse(node: any, prefix: string, isLast: boolean, depth: number) {
+      if (depth > 3) return; // Limit to 3 levels
+
+      const isRoot = depth === 0;
+
+      let lineStr = "";
+      if (isRoot) {
+        lineStr = "ROOT/";
+      } else {
+        const marker = isLast ? "└── " : "├── ";
+        lineStr = prefix + marker;
+
+        if (node.isFile) {
+          if (node.isParasite) {
+            lineStr += `[!] ${node.name}`;
+          } else {
+             // Only print files if it's a parasite, else we rely on dir count
+             return;
+          }
+        } else {
+           lineStr += `${node.name}/`;
+           if (node.audioCount > 0) {
+             lineStr += ` (${node.audioCount} tracks)`;
+           }
+        }
+      }
+
+      if (node.isFile && node.isParasite) {
+         // Return an object to know we need to highlight this line
+         lines.push(`$$RED$$${lineStr}`);
+      } else {
+         lines.push(lineStr);
+      }
+
+      if (!node.isFile) {
+        const children = Object.values(node.children);
+        // We only want to show directories or parasite files
+        const visibleChildren = children.filter((c: any) => !c.isFile || c.isParasite);
+
+        for (let i = 0; i < visibleChildren.length; i++) {
+          const childPrefix = isRoot ? "" : prefix + (isLast ? "    " : "│   ");
+          traverse(visibleChildren[i], childPrefix, i === visibleChildren.length - 1, depth + 1);
+        }
+      }
+    }
+
+    traverse(root, "", true, 0);
+    return lines;
+
+  }, [stats.filesForTree]);
+
+  return (
+    <div className="bg-[#0a0a0a] border border-[#333] p-4 font-mono text-base sm:text-lg overflow-x-auto whitespace-pre rounded">
+      {treeLines.map((line, idx) => {
+        if (line.startsWith('$$RED$$')) {
+           return <div key={idx} className="text-dj-red">{line.replace('$$RED$$', '')}</div>;
+        }
+        return <div key={idx} className="text-gray-300">{line}</div>;
+      })}
     </div>
   );
 }

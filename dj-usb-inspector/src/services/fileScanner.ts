@@ -12,6 +12,7 @@ export interface ScanStats {
   parasiteFilesCount: number;
   ripKeywordsCount: number;
   duplicateCount: number;
+  filesForTree: { path: string; isAudio: boolean; isParasite: boolean }[];
 }
 
 const SUPPORTED_EXTENSIONS = ['mp3', 'wav', 'aiff', 'aif', 'flac', 'alac', 'm4a', 'aac', 'ogg'];
@@ -44,6 +45,7 @@ export async function scanFiles(files: File[], onProgress?: (progress: number) =
     parasiteFilesCount: 0,
     ripKeywordsCount: 0,
     duplicateCount: 0,
+    filesForTree: [],
   };
 
   const audioFiles: File[] = [];
@@ -52,13 +54,24 @@ export async function scanFiles(files: File[], onProgress?: (progress: number) =
     const file = files[i];
     const ext = file.name.split('.').pop()?.toLowerCase();
 
+    let isParasite = false;
+    let isAudio = false;
+
     if (ext && PARASITE_EXTENSIONS.includes(ext)) {
       stats.parasiteFilesCount++;
+      isParasite = true;
     }
 
     if (ext && SUPPORTED_EXTENSIONS.includes(ext)) {
       audioFiles.push(file);
+      isAudio = true;
     }
+
+    stats.filesForTree.push({
+      path: file.webkitRelativePath || file.name,
+      isAudio,
+      isParasite,
+    });
   }
 
   stats.totalTracks = audioFiles.length;

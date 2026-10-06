@@ -8,15 +8,18 @@ function App() {
   const [isScanning, setIsScanning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<ScoreResult | null>(null);
+  const [stats, setStats] = useState<any>(null);
 
   const handleFilesSelected = async (files: File[]) => {
     setIsScanning(true);
     setProgress(0);
     setResult(null);
+    setStats(null);
 
     try {
-      const stats = await scanFiles(files, (p) => setProgress(p));
-      const finalScore = calculateScore(stats);
+      const scanStats = await scanFiles(files, (p) => setProgress(p));
+      const finalScore = calculateScore(scanStats);
+      setStats(scanStats);
       setResult(finalScore);
     } catch (error) {
       console.error("Error during scan:", error);
@@ -28,6 +31,7 @@ function App() {
 
   const handleReset = () => {
     setResult(null);
+    setStats(null);
     setProgress(0);
   };
 
@@ -67,6 +71,7 @@ function App() {
         ) : (
           <ResultCard
             result={result}
+            stats={stats}
             onReset={handleReset}
           />
         )}
