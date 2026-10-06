@@ -3,7 +3,7 @@ import { calculateScore } from './scoringEngine';
 import { type ScanStats } from './fileScanner';
 
 describe('Scoring Engine', () => {
-  it('Case 1: D rank (short duration, bad formats, fake lossless)', () => {
+  it('Case 1: C rank (short duration, bad formats, fake lossless)', () => {
     const stats: ScanStats = {
       parasiteFilesCount: 0,
       ripKeywordsCount: 0,
@@ -23,14 +23,15 @@ describe('Scoring Engine', () => {
 
     // Purity: 0 (fake lossless)
     // Compat: 5 * 10 / 10 = 5
-    // Culture: 0 (shortTracks > 50%) - wait, short is 40% which is not > 50%, so culture score proportional: extendedRatio = 0.1 -> (0.1/0.5)*20 = 4
-    // Marathon: 120/480 * 20 = 5
-    // Daft Punk: 0
-    // Expected score ~ 14, rank capped heavily (total < 4h -> Max C), but score 14 -> D.
+    // Culture: proportional: extendedRatio = 0.1 -> (0.1/0.5)*20 = 4
+    // Marathon: 120 >= 120 -> 14
+    // Dynamique: 10 (default)
+    // Hygiene: 15
+    // Total = 48 -> Rank C (>=45)
 
     const result = calculateScore(stats);
-    expect(result.rank).toBe('D');
-    expect(result.score).toBeLessThan(45);
+    expect(result.rank).toBe('C');
+    expect(result.score).toBe(48);
   });
 
   it('Case 2: B rank with fake lossless (high score but capped to B)', () => {
@@ -79,7 +80,7 @@ describe('Scoring Engine', () => {
     expect(result.score).toBeGreaterThanOrEqual(95);
   });
 
-  it('Case 4: S rank (perfect but no Daft Punk - caps to 94)', () => {
+  it('Case 4: S+ rank (perfect but no Daft Punk - can still reach 95)', () => {
     const stats: ScanStats = {
       parasiteFilesCount: 0,
       ripKeywordsCount: 0,
@@ -95,7 +96,7 @@ describe('Scoring Engine', () => {
     };
 
     const result = calculateScore(stats);
-    expect(result.rank).toBe('S');
-    expect(result.score).toBeLessThanOrEqual(94);
+    expect(result.rank).toBe('S+');
+    expect(result.score).toBe(100);
   });
 });

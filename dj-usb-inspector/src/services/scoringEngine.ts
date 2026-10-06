@@ -21,9 +21,9 @@ const VERDICTS: Record<Rank, string> = {
 export function calculateScore(stats: ScanStats): ScoreResult {
   let score = 0;
 
-  // Rule 1: Pureté spectrale (25 pts)
-  // 25 pts si lossless authentique ou MP3 CBR 320. Malus direct si faux lossless détecté.
-  let pureteScore = 25;
+  // Rule 1: Pureté spectrale (15 pts)
+  // 15 pts si lossless authentique ou MP3 CBR 320. Malus direct si faux lossless détecté.
+  let pureteScore = 15;
   if (stats.hasFakeLossless) {
     pureteScore = 0; // Malus direct
   } else {
@@ -41,7 +41,7 @@ export function calculateScore(stats: ScanStats): ScoreResult {
 
     if (stats.totalTracks > 0) {
       const hqRatio = highQualityCount / stats.totalTracks;
-      pureteScore = Math.round(25 * hqRatio);
+      pureteScore = Math.round(15 * hqRatio);
     } else {
       pureteScore = 0;
     }
@@ -92,14 +92,19 @@ export function calculateScore(stats: ScanStats): ScoreResult {
   }
   score += cultureScore;
 
-  // Rule 4: Marathon 8h (15 pts)
-  // 15 pts si durée cumulée >= 8h (480 minutes). Dégressif proportionnellement si durée < 8h.
+  // Rule 4: Marathon (20 pts max, progressif)
   const totalMinutes = stats.totalDurationMs / (1000 * 60);
   let marathonScore = 0;
-  if (totalMinutes >= 480) {
-    marathonScore = 15;
+  if (totalMinutes >= 360) {
+    marathonScore = 20;
+  } else if (totalMinutes >= 240) {
+    marathonScore = 17;
+  } else if (totalMinutes >= 120) {
+    marathonScore = 14;
+  } else if (totalMinutes >= 60) {
+    marathonScore = 10;
   } else {
-    marathonScore = Math.round((totalMinutes / 480) * 15);
+    marathonScore = 5;
   }
   score += marathonScore;
 
@@ -139,29 +144,27 @@ export function calculateScore(stats: ScanStats): ScoreResult {
   }
   score += dynamiqueScore;
 
-  // Rule 6: Hygiène & Parasites (10 pts)
-  let hygieneScore = 10;
-  hygieneScore -= Math.min(15, stats.parasiteFilesCount * 3);
-  hygieneScore -= Math.min(20, stats.ripKeywordsCount * 5);
-  hygieneScore = Math.max(0, hygieneScore); // base de 10 max
+  // Rule 6: Hygiène & Parasites (15 pts)
+  let hygieneScore = 15;
+  hygieneScore -= stats.parasiteFilesCount * 4;
+  hygieneScore -= stats.ripKeywordsCount * 5;
+  let duplicatePenalty = 0;
+  if (stats.duplicateCount >= 1 && stats.duplicateCount <= 2) duplicatePenalty = 3;
+  else if (stats.duplicateCount >= 3) duplicatePenalty = 8;
+  hygieneScore -= duplicatePenalty;
+
+  hygieneScore = Math.max(0, hygieneScore);
   score += hygieneScore;
 
-  // Rule 7: Bonus Daft Punk (10 pts)
+  // Rule 7: Bonus Daft Punk (5 pts)
   let daftPunkScore = 0;
   if (stats.hasDaftPunk) {
-    daftPunkScore = 10;
+    daftPunkScore = 5;
   }
   score += daftPunkScore;
 
   // Ensure base score doesn't exceed 100
   score = Math.min(score, 100);
-
-  // Rule 8: Pénalité Doublons
-  let duplicatePenalty = 0;
-  if (stats.duplicateCount >= 1 && stats.duplicateCount <= 2) duplicatePenalty = 2;
-  else if (stats.duplicateCount >= 3 && stats.duplicateCount <= 5) duplicatePenalty = 6;
-  else if (stats.duplicateCount > 5) duplicatePenalty = 12;
-  score = Math.max(0, score - duplicatePenalty);
 
   // Apply Hard Caps
   const shortTracksRatio = stats.totalTracks > 0 ? stats.shortTracks / stats.totalTracks : 0;
@@ -169,19 +172,14 @@ export function calculateScore(stats: ScanStats): ScoreResult {
   let maxScore = 100;
   let maxRank: Rank = 'S+';
 
-  if (!stats.hasDaftPunk) {
-    maxScore = Math.min(maxScore, 94);
-    maxRank = 'S';
-  }
-
   if (shortTracksRatio > 0.3) {
     maxScore = Math.min(maxScore, 84);
     if (maxRank === 'S+' || maxRank === 'S') maxRank = 'A';
   }
 
-  if (totalMinutes < 240) { // 4 hours
-    maxScore = Math.min(maxScore, 59);
-    if (['S+', 'S', 'A', 'B'].includes(maxRank)) maxRank = 'C';
+  if (totalMinutes < 20) { // 20 minutes
+    maxScore = Math.min(maxScore, 84);
+    if (['S+', 'S', 'A'].includes(maxRank)) maxRank = 'B';
   }
 
   if (stats.hasFakeLossless) {
