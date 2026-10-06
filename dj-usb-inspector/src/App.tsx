@@ -63,10 +63,10 @@ function App() {
           <div className="w-full space-y-8 animate-in fade-in duration-700">
             <div className="text-center space-y-4 max-w-xl mx-auto">
               <h2 className="text-3xl font-bold font-mono tracking-tight">
-                L'épreuve de vérité.
+                CHECK TA SÉLECTION.
               </h2>
               <p className="text-gray-400">
-                Découvre le rang secret de ta collection. Notre algorithme impitoyable analyse tes formats, tes durées et la pureté spectrale de tes kicks.
+                Glisse ton dossier ou ta clé USB pour évaluer la qualité sonore, la structure de tes dossiers et l'endurance de ton set.
               </p>
             </div>
 
