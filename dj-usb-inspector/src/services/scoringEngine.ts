@@ -28,31 +28,24 @@ const VERDICTS: Record<Rank, string> = {
 export function calculateScore(stats: ScanStats): ScoreResult {
   let score = 0;
 
-  // Rule 1: Pureté spectrale (15 pts)
-  // 15 pts si lossless authentique ou MP3 CBR 320. Malus direct si faux lossless détecté.
-  let pureteScore = 15;
-  if (stats.hasFakeLossless) {
-    pureteScore = 0; // Malus direct
-  } else {
-    // Check if majority of tracks are high quality
-    let highQualityCount = 0;
-    for (const track of stats.metadataList) {
-      if (['wav', 'aiff', 'aif', 'flac', 'alac'].includes(track.extension)) {
-        highQualityCount++;
-      } else if (track.extension === 'mp3' && track.bitrate && track.bitrate >= 320000) {
-        // Technically we can't easily detect CBR vs VBR reliably just from metadata in all cases without full parsing,
-        // but bitrate >= 320k usually indicates 320kbps CBR.
-        highQualityCount++;
-      }
-    }
+  // Rule 1: Pureté spectrale & Dynamique (25 pts combined)
+  // 25 pts based on ratio of bad audio (fake lossless, etc.) among tested tracks
+  let pureteScore = 25;
+  let badAudioRatio = 0;
 
-    if (stats.totalTracks > 0) {
-      const hqRatio = highQualityCount / stats.totalTracks;
-      pureteScore = Math.round(15 * hqRatio);
+  if (stats.testedTracksCount > 0) {
+    badAudioRatio = (stats.badAudioCount / stats.testedTracksCount) * 100;
+    if (stats.badAudioCount === 0) {
+      pureteScore = 25;
+    } else if (badAudioRatio <= 5) {
+      pureteScore = 18;
+    } else if (badAudioRatio <= 15) {
+      pureteScore = 10;
     } else {
       pureteScore = 0;
     }
   }
+
   score += pureteScore;
 
   // Rule 2: Compatibilité tout-terrain (20 pts)
@@ -120,52 +113,43 @@ export function calculateScore(stats: ScanStats): ScoreResult {
   }
   score += marathonScore;
 
-  // Rule 5: Dynamique sonore (10 pts)
+  // Rule 5: Dynamique sonore (Merged with Rule 1)
   let dynamiqueScore = 0;
-
-  if (stats.totalTracks > 0) {
-    let dynTotal = 0;
-    let trackWithDynCount = 0;
-    for (const track of stats.metadataList) {
-      if (track.crestFactor !== undefined && track.peak !== undefined) {
-        trackWithDynCount++;
-        let trackDynScore = 0;
-
-        if (track.crestFactor >= 8 && track.crestFactor <= 14) {
-          trackDynScore += 10;
-        } else if (track.crestFactor < 6) {
-          trackDynScore += 0;
-
-        } else {
-          trackDynScore += 5; // proportional for 6-8 or >14
-        }
-
-        if (track.peak < 0.5) { // < -6 dBFS
-          trackDynScore -= 5;
-        }
-
-        dynTotal += Math.max(0, trackDynScore);
-      }
-    }
-
-    if (trackWithDynCount > 0) {
-      dynamiqueScore = Math.round(dynTotal / trackWithDynCount);
-    } else {
-      dynamiqueScore = 10; // Default to full points if no dynamic info could be extracted (e.g. all decoding failed)
-    }
-  }
   score += dynamiqueScore;
 
   // Rule 6: Hygiène & Parasites (15 pts)
-  let hygieneScore = 15;
-  hygieneScore -= stats.parasiteFilesCount * 4;
-  hygieneScore -= stats.ripKeywordsCount * 5;
-  let duplicatePenalty = 0;
-  if (stats.duplicateCount >= 1 && stats.duplicateCount <= 2) duplicatePenalty = 3;
-  else if (stats.duplicateCount >= 3) duplicatePenalty = 8;
-  hygieneScore -= duplicatePenalty;
+  let hygieneScore = 0;
 
-  hygieneScore = Math.max(0, hygieneScore);
+  // A. Intégrité des Doublons (5 points)
+  if (stats.totalTracks > 0) {
+    const duplicateRatio = (stats.duplicateCount / stats.totalTracks) * 100;
+    if (duplicateRatio <= 1) hygieneScore += 5;
+    else if (duplicateRatio <= 3) hygieneScore += 3;
+    else if (duplicateRatio <= 6) hygieneScore += 1;
+  } else {
+    hygieneScore += 5; // Default if no tracks
+  }
+
+  // B. Absence de Rips sauvages (5 points)
+  if (stats.totalTracks > 0) {
+    const ripRatio = (stats.ripKeywordsCount / stats.totalTracks) * 100;
+    if (stats.ripKeywordsCount === 0) hygieneScore += 5;
+    else if (ripRatio <= 1) hygieneScore += 3;
+    else if (ripRatio <= 3) hygieneScore += 1;
+  } else {
+    hygieneScore += 5; // Default
+  }
+
+  // C. Absence de Fichiers Parasites non-audio (5 points)
+  if (stats.totalFilesFound > 0) {
+    const parasiteRatio = (stats.parasiteFilesCount / stats.totalFilesFound) * 100;
+    if (stats.parasiteFilesCount === 0) hygieneScore += 5;
+    else if (parasiteRatio <= 1) hygieneScore += 3;
+    else if (parasiteRatio <= 3) hygieneScore += 1;
+  } else {
+    hygieneScore += 5; // Default
+  }
+
   score += hygieneScore;
 
   // Rule 7: Bonus Daft Punk (5 pts)
@@ -194,7 +178,7 @@ export function calculateScore(stats: ScanStats): ScoreResult {
     if (['S+', 'S', 'A'].includes(maxRank)) maxRank = 'B';
   }
 
-  if (stats.hasFakeLossless) {
+  if (badAudioRatio > 15) {
     maxScore = Math.min(maxScore, 74);
     if (['S+', 'S', 'A'].includes(maxRank)) maxRank = 'B';
   }

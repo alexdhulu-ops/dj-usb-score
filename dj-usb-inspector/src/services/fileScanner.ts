@@ -15,6 +15,8 @@ export interface ScanStats {
   filesForTree: { path: string; isAudio: boolean; isParasite: boolean; isRip: boolean; isDuplicate?: boolean; metadata?: AudioMetadata }[];
   folderRanks: Record<string, string>;
   totalFilesFound: number;
+  testedTracksCount: number;
+  badAudioCount: number;
 }
 
 const SUPPORTED_EXTENSIONS = ['mp3', 'wav', 'aiff', 'aif', 'flac', 'alac', 'm4a', 'aac', 'ogg'];
@@ -50,6 +52,8 @@ export async function scanFiles(files: File[], onProgress?: (progress: number, c
     filesForTree: [],
     folderRanks: {},
     totalFilesFound: files.length,
+    testedTracksCount: 0,
+    badAudioCount: 0,
   };
 
   const audioFiles: File[] = [];
@@ -211,6 +215,13 @@ export async function scanFiles(files: File[], onProgress?: (progress: number, c
         // Fake lossless
         if (metadata.isFakeLossless) {
           stats.hasFakeLossless = true;
+        }
+
+        if (analyzeFull) {
+          stats.testedTracksCount++;
+          if (metadata.isFakeLossless) {
+            stats.badAudioCount++;
+          }
         }
 
         // Daft Punk Easter Egg

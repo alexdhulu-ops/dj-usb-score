@@ -14,6 +14,8 @@ describe('Scoring Engine', () => {
       extendedTracks: 1,
       hasDaftPunk: false,
       hasFakeLossless: true,
+      testedTracksCount: 10,
+      badAudioCount: 10,
       metadataList: Array(10).fill({
         extension: 'mp3',
         isFakeLossless: false, // Overall fake lossless is true
@@ -25,13 +27,13 @@ describe('Scoring Engine', () => {
     // Compat: 5 * 10 / 10 = 5
     // Culture: extendedRatio = 0.1 -> 5 pts
     // Marathon: 120 >= 120 -> 14
-    // Dynamique: 10 (default)
+    // Dynamique: 0
     // Hygiene: 15
-    // Total = 49 -> Rank C (>=45)
+    // Total = 30 -> Rank D
 
     const result = calculateScore(stats);
     expect(result.rank).toBe('D');
-    expect(result.score).toBe(40);
+    expect(result.score).toBe(30);
   });
 
   it('Case 2: B rank with fake lossless (high score but capped to B)', () => {
@@ -45,6 +47,8 @@ describe('Scoring Engine', () => {
       extendedTracks: 550,
       hasDaftPunk: true,
       hasFakeLossless: true, // TRIGGERS HARD CAP B
+      testedTracksCount: 10,
+      badAudioCount: 10,
       metadataList: [
         ...Array(550).fill({ extension: 'aiff', isFakeLossless: false }),
         ...Array(10).fill({ extension: 'wav', isFakeLossless: true })
@@ -71,6 +75,10 @@ describe('Scoring Engine', () => {
       extendedTracks: 550,
       hasDaftPunk: true,
       hasFakeLossless: false,
+      testedTracksCount: 8,
+      badAudioCount: 0,
+      testedTracksCount: 8,
+      badAudioCount: 0,
       metadataList: Array(550).fill({ extension: 'aiff', isFakeLossless: false }),
       duplicateCount: 0, filesForTree: [], folderRanks: {},
     };
@@ -111,11 +119,36 @@ describe('Scoring Engine', () => {
       extendedTracks: 1, // Will be considered extended!
       hasDaftPunk: false,
       hasFakeLossless: false,
+      testedTracksCount: 1,
+      badAudioCount: 0,
       metadataList: [{ extension: 'wav', isFakeLossless: false, duration: 891 }],
       duplicateCount: 0, filesForTree: [], folderRanks: {},
     };
 
     const result = calculateScore(stats);
     expect(result.details.extendedCulture).toBe(20);
+  });
+
+  it('Case 6: Large collection hygiene (S+ rank)', () => {
+    const stats: ScanStats = {
+      parasiteFilesCount: 0,
+      ripKeywordsCount: 1, // 1 rip keyword
+      totalDurationInSeconds: 600 * 3600, totalFilesFound: 604, // 600 tracks + 3 dupes + 1 rip file = 604 files maybe
+      formatDistribution: { aiff: 600 },
+      totalTracks: 600,
+      shortTracks: 0,
+      extendedTracks: 600,
+      hasDaftPunk: true,
+      hasFakeLossless: false,
+      testedTracksCount: 8,
+      badAudioCount: 0,
+      metadataList: Array(600).fill({ extension: 'aiff', isFakeLossless: false }),
+      duplicateCount: 3, // 3 duplicates (0.5%)
+      filesForTree: [], folderRanks: {},
+    };
+
+    const result = calculateScore(stats);
+    expect(result.rank).toBe('S+');
+    expect(result.details.driveHygiene).toBeGreaterThanOrEqual(13);
   });
 });
