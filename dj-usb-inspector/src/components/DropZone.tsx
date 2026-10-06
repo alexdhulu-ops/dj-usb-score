@@ -6,9 +6,11 @@ interface DropZoneProps {
   onFilesSelected: (files: File[]) => void;
   isScanning: boolean;
   progress: number;
+  currentScan?: number;
+  totalScan?: number;
 }
 
-export function DropZone({ onFilesSelected, isScanning, progress }: DropZoneProps) {
+export function DropZone({ onFilesSelected, isScanning, progress, currentScan = 0, totalScan = 0 }: DropZoneProps) {
   const [isDragActive, setIsDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -124,7 +126,7 @@ export function DropZone({ onFilesSelected, isScanning, progress }: DropZoneProp
           <div className="flex flex-col items-center space-y-6 w-full px-8">
             <div className="text-center space-y-4 w-full">
               <p className="text-dj-green font-vt323 text-2xl tracking-widest uppercase animate-pulse">
-                ANALYZING BITRATES & CUES...
+                {totalScan > 0 ? `ANALYZING TRACKS (${currentScan}/${totalScan})...` : 'ANALYZING BITRATES & CUES...'}
               </p>
 
               {/* Pixel VU Meter */}

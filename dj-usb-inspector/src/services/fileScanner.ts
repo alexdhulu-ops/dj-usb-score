@@ -33,7 +33,7 @@ function isDaftPunk(metadata: AudioMetadata): boolean {
   return DAFT_PUNK_KEYWORDS.some(keyword => searchString.includes(keyword));
 }
 
-export async function scanFiles(files: File[], onProgress?: (progress: number) => void): Promise<ScanStats> {
+export async function scanFiles(files: File[], onProgress?: (progress: number, current: number, total: number) => void): Promise<ScanStats> {
   const stats: ScanStats = {
     totalDurationMs: 0,
     formatDistribution: {},
@@ -79,15 +79,47 @@ export async function scanFiles(files: File[], onProgress?: (progress: number) =
 
   stats.totalTracks = audioFiles.length;
 
-  for (let i = 0; i < audioFiles.length; i++) {
+  // Determine which files will undergo full analysis (max 8 files total, prioritize .wav / .aiff)
+  const fullAnalysisIndices = new Set<number>();
+  let losslessCount = 0;
+
+  // First pass: find lossless files
+  for (let i = 0; i < audioFiles.length && losslessCount < 8; i++) {
+    const ext = audioFiles[i].name.split('.').pop()?.toLowerCase();
+    if (ext === 'wav' || ext === 'aiff' || ext === 'aif') {
+      fullAnalysisIndices.add(i);
+      losslessCount++;
+    }
+  }
+
+  // Second pass: fill remaining slots with random other files
+  const remainingIndices = Array.from({ length: audioFiles.length }, (_, i) => i)
+    .filter(i => !fullAnalysisIndices.has(i))
+    .sort(() => 0.5 - Math.random());
+
+  for (let i = 0; i < remainingIndices.length && fullAnalysisIndices.size < 8; i++) {
+    fullAnalysisIndices.add(remainingIndices[i]);
+  }
+
+  let processedCount = 0;
+  const CONCURRENCY_LIMIT = 3;
+
+  // Set up 60 seconds absolute timeout
+  const TIMEOUT_MS = 60 * 1000;
+  let isTimedOut = false;
+  const timeoutPromise = new Promise<void>((resolve) => {
+    setTimeout(() => {
+      isTimedOut = true;
+      resolve();
+    }, TIMEOUT_MS);
+  });
+
+  const processFile = async (i: number) => {
     const file = audioFiles[i];
 
-    if (onProgress) {
-      onProgress(Math.round((i / audioFiles.length) * 100));
-    }
-
     try {
-      const metadata = await parseAudioFile(file);
+      const analyzeFull = fullAnalysisIndices.has(i);
+      const metadata = await parseAudioFile(file, analyzeFull);
       stats.metadataList.push(metadata);
 
       // Duration (in seconds from metadata)
@@ -135,7 +167,41 @@ export async function scanFiles(files: File[], onProgress?: (progress: number) =
 
     } catch (e) {
       console.warn(`Error scanning file ${file.name}`, e);
+    } finally {
+      processedCount++;
+      if (onProgress) {
+        onProgress(Math.round((processedCount / audioFiles.length) * 100), processedCount, audioFiles.length);
+      }
     }
+  };
+
+  // Concurrency queue processing
+  let currentIndex = 0;
+  const workers = Array.from({ length: Math.min(CONCURRENCY_LIMIT, audioFiles.length) }, async () => {
+    while (currentIndex < audioFiles.length && !isTimedOut) {
+      const index = currentIndex++;
+      await processFile(index);
+    }
+  });
+
+  // Wait for all workers to finish OR timeout
+  let timeoutId: any;
+  const timeoutPromiseWithClear = new Promise<void>((resolve) => {
+    timeoutId = setTimeout(() => {
+      isTimedOut = true;
+      resolve();
+    }, TIMEOUT_MS);
+  });
+
+  await Promise.race([
+    Promise.all(workers),
+    timeoutPromiseWithClear
+  ]);
+
+  clearTimeout(timeoutId);
+
+  if (isTimedOut) {
+    console.warn('Scan timeout reached. Processing partial results.');
   }
 
   let duplicates = 0;
