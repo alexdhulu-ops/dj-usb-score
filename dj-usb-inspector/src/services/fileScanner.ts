@@ -107,6 +107,7 @@ export async function scanFiles(files: File[], onProgress?: (progress: number, c
   // Set up 60 seconds absolute timeout
   const TIMEOUT_MS = 60 * 1000;
   let isTimedOut = false;
+  // @ts-expect-error we need the timeoutPromise side-effect but it's unused
   const timeoutPromise = new Promise<void>((resolve) => {
     setTimeout(() => {
       isTimedOut = true;
@@ -313,7 +314,7 @@ export async function scanFiles(files: File[], onProgress?: (progress: number, c
   }
 
   if (onProgress) {
-    onProgress(100);
+    onProgress(100, 100, 100);
   }
 
   return stats;

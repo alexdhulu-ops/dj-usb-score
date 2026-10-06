@@ -20,9 +20,9 @@ const VERDICTS: Record<Rank, string> = {
   'S+': "Prêt pour le closing du Berghain. Tes ancêtres sont fiers de ta bande passante.",
   'S': "Tout-terrain, propre, infatigable. Tu peux monter en cabine les yeux fermés.",
   'A': "Un set propre et efficace, mais un détail invisible t'empêche de toucher la perfection.",
-  'B': "Ça passe en boîte, mais certaines platines vont cracher sur tes choix.",
-  'C': "Des raccourcis suspects et un manque criant de souffle. Revois tes classiques.",
-  'D': "Un crime contre le dancefloor. Tes fichiers pleurent et ton set s'arrête avant minuit.",
+  'B': "La fondation est là, mais ton set repose sur des bases encore instables.",
+  'C': "Il y a de l'idée, mais ta bibliothèque manque cruellement de préparation.",
+  'D': "Un crime contre le dancefloor. Ta clé USB n'est pas prête pour affronter la nuit.",
 };
 
 export function calculateScore(stats: ScanStats): ScoreResult {
@@ -118,7 +118,7 @@ export function calculateScore(stats: ScanStats): ScoreResult {
 
   // Rule 5: Dynamique sonore (10 pts)
   let dynamiqueScore = 0;
-  let hasCrushedSound = false;
+
   if (stats.totalTracks > 0) {
     let dynTotal = 0;
     let trackWithDynCount = 0;
@@ -131,7 +131,7 @@ export function calculateScore(stats: ScanStats): ScoreResult {
           trackDynScore += 10;
         } else if (track.crestFactor < 6) {
           trackDynScore += 0;
-          hasCrushedSound = true;
+
         } else {
           trackDynScore += 5; // proportional for 6-8 or >14
         }
@@ -215,24 +215,62 @@ export function calculateScore(stats: ScanStats): ScoreResult {
 
   let finalVerdict = VERDICTS[rank];
 
-  const additionalFeedbacks: string[] = [];
-  if (stats.parasiteFilesCount > 0) {
-    additionalFeedbacks.push("Une clé USB n'est pas un dossier administratif. Fais du tri.");
-  }
-  if (stats.ripKeywordsCount > 0) {
-    additionalFeedbacks.push("L'odeur du convertisseur YouTube à 3h du matin a alerté le système.");
-  }
-  if (hasCrushedSound) {
-    additionalFeedbacks.push("Tes formes d'onde ressemblent à des briques de béton. Laisse respirer tes kicks.");
-  }
-  if (stats.duplicateCount >= 3) {
-    additionalFeedbacks.push("La mémoire flanche : certains morceaux jouent les passe-murailles en double exemplaire.");
-  }
+  if (['A', 'B', 'C', 'D'].includes(rank)) {
+    const ratios: Record<string, number> = {
+      AUDIO_PURITY: (pureteScore + dynamiqueScore) / 25,
+      HARDWARE_COMPATIBILITY: compatScore / 20,
+      EXTENDED_CULTURE: cultureScore / 20,
+      ENDURANCE: marathonScore / 20,
+      HYGIENE: hygieneScore / 15,
+    };
 
-  if (additionalFeedbacks.length > 0) {
-    // Pick a random feedback to append
-    const randomFeedback = additionalFeedbacks[Math.floor(Math.random() * additionalFeedbacks.length)];
-    finalVerdict += " " + randomFeedback;
+    let minCategory: string | null = null;
+    let minRatio = Infinity;
+
+    for (const [category, ratio] of Object.entries(ratios)) {
+      if (ratio <= 0.85) {
+        if (category === 'HARDWARE_COMPATIBILITY' && ratio >= 0.75) {
+          continue;
+        }
+        if (ratio < minRatio) {
+          minRatio = ratio;
+          minCategory = category;
+        }
+      }
+    }
+
+    if (minCategory) {
+      let warning = "";
+      if (minCategory === 'ENDURANCE') {
+        const msgs = [
+          "Ta sélection est propre, mais le club ferme à 7h et ton set s'essouffle bien avant le lever du jour.",
+          "Belle amorce, mais il va te falloir du carburant pour tenir un vrai marathon de nuit."
+        ];
+        warning = msgs[Math.floor(Math.random() * msgs.length)];
+      } else if (minCategory === 'EXTENDED_CULTURE') {
+        const msgs = [
+          "Tes transitions vont être courtes : tes morceaux se terminent avant même que le kick suivant ne respire.",
+          "Des sélections taillées pour la radio FM plutôt que pour faire transpirer un dancefloor sur la durée."
+        ];
+        warning = msgs[Math.floor(Math.random() * msgs.length)];
+      } else if (minCategory === 'HYGIENE') {
+        const msgs = [
+          "Fichiers doublés ou intrus égarés : ta clé ressemble plus à un tiroir encombré qu'à une trousse d'outils de club.",
+          "L'algorithme a senti des résidus parasites qui n'ont rien à faire sur une table de mixage."
+        ];
+        warning = msgs[Math.floor(Math.random() * msgs.length)];
+      } else if (minCategory === 'AUDIO_PURITY') {
+        const msgs = [
+          "Gare au sonomètre : certaines fréquences semblent avoir été rabotées ou écrasées au rouleau compresseur.",
+          "Tes formes d'onde manquent d'oxygène, le système son va souffrir sur les bas-médiums."
+        ];
+        warning = msgs[Math.floor(Math.random() * msgs.length)];
+      } else if (minCategory === 'HARDWARE_COMPATIBILITY') {
+        warning = "Certaines régies à l'ancienne risquent de s'étouffer avec tes choix de codecs.";
+      }
+
+      finalVerdict += " " + warning;
+    }
   }
 
   return {
