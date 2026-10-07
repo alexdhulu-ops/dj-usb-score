@@ -1,6 +1,18 @@
 import { type ScanStats } from './fileScanner';
 
 
+export function clampMap(
+  value: number,
+  inMin: number,
+  inMax: number,
+  outMin: number,
+  outMax: number
+): number {
+  if (value <= inMin) return outMin;
+  if (value >= inMax) return outMax;
+  return outMin + ((value - inMin) / (inMax - inMin)) * (outMax - outMin);
+}
+
 export type Rank = 'S+' | 'S' | 'A' | 'B' | 'C' | 'D';
 
 export interface ScoreResult {
@@ -35,25 +47,21 @@ export function calculateScore(stats: ScanStats): ScoreResult {
 
   if (stats.testedTracksCount > 0) {
     badAudioRatio = (stats.badAudioCount / stats.testedTracksCount) * 100;
-    if (stats.badAudioCount === 0) {
-      pureteScore = 25;
-    } else if (badAudioRatio <= 5) {
-      pureteScore = 18;
-    } else if (badAudioRatio <= 15) {
-      pureteScore = 10;
-    } else {
-      pureteScore = 0;
-    }
+
+    // Map badAudioRatio (0 to 15%) directly to points (25 to 0)
+    pureteScore = clampMap(badAudioRatio, 0, 15, 25, 0);
 
     // Clipping Penalty
     const clippingRatio = stats.clippingCount / stats.testedTracksCount;
     if (clippingRatio > 0) {
-      const penalty = Math.min(5, Math.max(2, Math.round(clippingRatio * 5)));
+      // Map clippingRatio (0 to 5%) to penalty (0 to 5 pts)
+      const penalty = clampMap(clippingRatio, 0, 0.05, 0, 5);
       pureteScore -= penalty;
       pureteScore = Math.max(0, pureteScore);
     }
   }
 
+  pureteScore = Number(pureteScore.toFixed(2));
   score += pureteScore;
 
   // Rule 2: Compatibilité tout-terrain (20 pts)
@@ -82,14 +90,14 @@ export function calculateScore(stats: ScanStats): ScoreResult {
         exoticCount++;
       }
     }
-    compatScore = Math.round(totalCompatPts / stats.totalTracks);
+    compatScore = totalCompatPts / stats.totalTracks;
     exoticRatio = exoticCount / stats.totalTracks;
 
-    if (exoticRatio > 0.05) {
-      compatScore -= 4;
-      compatScore = Math.max(0, compatScore);
-    }
+    const exoticPenalty = clampMap(exoticRatio, 0.05, 0.20, 0, 4);
+    compatScore -= exoticPenalty;
+    compatScore = Math.max(0, compatScore);
   }
+  compatScore = Number(compatScore.toFixed(2));
   score += compatScore;
 
   // Rule 3: Culture Extended (20 pts)
@@ -101,16 +109,11 @@ export function calculateScore(stats: ScanStats): ScoreResult {
 
     if (shortRatio === 1 || extendedRatio === 0) {
       cultureScore = 0; // Saturé de pistes courtes ou aucune piste extended
-    } else if (extendedRatio >= 0.7) {
-      cultureScore = 20;
-    } else if (extendedRatio >= 0.5) {
-      cultureScore = 15;
-    } else if (extendedRatio >= 0.3) {
-      cultureScore = 10;
-    } else if (extendedRatio > 0) {
-      cultureScore = 5;
+    } else {
+      cultureScore = clampMap(extendedRatio, 0, 0.7, 0, 20);
     }
   }
+  cultureScore = Number(cultureScore.toFixed(2));
   score += cultureScore;
 
   // Rule 4: Marathon (20 pts max, progressif)
@@ -118,19 +121,17 @@ export function calculateScore(stats: ScanStats): ScoreResult {
   const totalHours = stats.totalDurationInSeconds / 3600;
   const totalMinutes = stats.totalDurationInSeconds / 60;
   let marathonScore = 0;
-  if (stats.totalTracks >= 550 && totalHours >= 55) {
-    marathonScore = 20;
-  } else if (stats.totalTracks >= 350 && totalHours >= 35) {
-    marathonScore = 18;
-  } else if (stats.totalTracks >= 200 && totalHours >= 20) {
-    marathonScore = 15;
-  } else if (stats.totalTracks >= 100 && totalHours >= 10) {
-    marathonScore = 12;
-  } else if (stats.totalTracks >= 40 && totalHours >= 3) {
-    marathonScore = 8;
-  } else {
-    marathonScore = 5;
+
+  if (stats.totalTracks > 0) {
+    // Both metrics contribute, we take the minimum completion ratio towards the extreme goal
+    const trackRatio = stats.totalTracks / 550;
+    const hourRatio = totalHours / 55;
+    const marathonRatio = Math.min(trackRatio, hourRatio);
+
+    marathonScore = clampMap(marathonRatio, 0, 1, 0, 20);
   }
+
+  marathonScore = Number(marathonScore.toFixed(2));
   score += marathonScore;
 
   // Rule 5: Dynamique sonore (Merged with Rule 1)
@@ -143,9 +144,7 @@ export function calculateScore(stats: ScanStats): ScoreResult {
   // A. Intégrité des Doublons (5 points)
   if (stats.totalTracks > 0) {
     const duplicateRatio = (stats.duplicateCount / stats.totalTracks) * 100;
-    if (duplicateRatio <= 1) hygieneScore += 5;
-    else if (duplicateRatio <= 3) hygieneScore += 3;
-    else if (duplicateRatio <= 6) hygieneScore += 1;
+    hygieneScore += clampMap(duplicateRatio, 0, 6, 5, 0);
   } else {
     hygieneScore += 5; // Default if no tracks
   }
@@ -153,9 +152,7 @@ export function calculateScore(stats: ScanStats): ScoreResult {
   // B. Absence de Rips sauvages (5 points)
   if (stats.totalTracks > 0) {
     const ripRatio = (stats.ripKeywordsCount / stats.totalTracks) * 100;
-    if (stats.ripKeywordsCount === 0) hygieneScore += 5;
-    else if (ripRatio <= 1) hygieneScore += 3;
-    else if (ripRatio <= 3) hygieneScore += 1;
+    hygieneScore += clampMap(ripRatio, 0, 3, 5, 0);
   } else {
     hygieneScore += 5; // Default
   }
@@ -163,9 +160,7 @@ export function calculateScore(stats: ScanStats): ScoreResult {
   // C. Absence de Fichiers Parasites non-audio (5 points)
   if (stats.totalFilesFound > 0) {
     const parasiteRatio = (stats.parasiteFilesCount / stats.totalFilesFound) * 100;
-    if (stats.parasiteFilesCount === 0) hygieneScore += 5;
-    else if (parasiteRatio <= 1) hygieneScore += 3;
-    else if (parasiteRatio <= 3) hygieneScore += 1;
+    hygieneScore += clampMap(parasiteRatio, 0, 3, 5, 0);
   } else {
     hygieneScore += 5; // Default
   }
@@ -179,14 +174,15 @@ export function calculateScore(stats: ScanStats): ScoreResult {
       }
     }
     const varietyRatio = uniqueArtists.size / stats.totalTracks;
-    if (varietyRatio < 0.1) {
-      hygieneScore -= 3;
-    }
+    const diversityPenalty = clampMap(varietyRatio, 0.05, 0.1, 3, 0);
+    hygieneScore -= diversityPenalty;
   }
 
+  hygieneScore = Number(hygieneScore.toFixed(2));
   score += hygieneScore;
 
   // Rule 7: Bonus Daft Punk (5 pts)
+  // Adjusted: Easter Egg dynamically inflates score without showing in details
   let daftPunkScore = 0;
   if (stats.hasDaftPunk) {
     daftPunkScore = 5;
@@ -195,6 +191,7 @@ export function calculateScore(stats: ScanStats): ScoreResult {
 
   // Ensure base score doesn't exceed 100
   score = Math.min(score, 100);
+  score = Number(score.toFixed(2));
 
   // Apply Hard Caps
   const shortTracksRatio = stats.totalTracks > 0 ? stats.shortTracks / stats.totalTracks : 0;
@@ -203,17 +200,17 @@ export function calculateScore(stats: ScanStats): ScoreResult {
   let maxRank: Rank = 'S+';
 
   if (shortTracksRatio > 0.3) {
-    maxScore = Math.min(maxScore, 84);
+    maxScore = Math.min(maxScore, 84.99);
     if (maxRank === 'S+' || maxRank === 'S') maxRank = 'A';
   }
 
   if (totalMinutes < 20) { // 20 minutes
-    maxScore = Math.min(maxScore, 84);
+    maxScore = Math.min(maxScore, 84.99);
     if (['S+', 'S', 'A'].includes(maxRank)) maxRank = 'B';
   }
 
   if (badAudioRatio > 15) {
-    maxScore = Math.min(maxScore, 74);
+    maxScore = Math.min(maxScore, 74.99);
     if (['S+', 'S', 'A'].includes(maxRank)) maxRank = 'B';
   }
 
