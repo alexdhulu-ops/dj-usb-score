@@ -29,6 +29,17 @@ export default {
           '33%': { transform: 'translate(-2px, 1px)' },
           '66%': { transform: 'translate(2px, -1px)' }
         },
+        'badge-slam': {
+          '0%': { transform: 'scale(2.2)', opacity: '0' },
+          '100%': { transform: 'scale(1)', opacity: '1' }
+        },
+        'screen-shake': {
+          '0%, 100%': { transform: 'translate(0, 0)' },
+          '20%': { transform: 'translate(-2px, 2px)' },
+          '40%': { transform: 'translate(2px, -2px)' },
+          '60%': { transform: 'translate(-2px, -2px)' },
+          '80%': { transform: 'translate(2px, 2px)' }
+        },
         'flicker': {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.8' },
@@ -44,6 +55,8 @@ export default {
         'shine-slow': 'shine 3s steps(8) infinite',
         'glitch': 'glitch 0.2s steps(2) infinite',
         'flicker': 'flicker 2s steps(2) infinite',
+        'badge-slam': 'badge-slam 0.2s ease-in forwards',
+        'screen-shake': 'screen-shake 0.15s linear forwards',
       }
     },
   },

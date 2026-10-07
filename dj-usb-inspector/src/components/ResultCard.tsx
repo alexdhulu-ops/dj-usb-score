@@ -12,26 +12,51 @@ interface ResultCardProps {
 }
 
 export function ResultCard({ result, stats, onReset }: ResultCardProps) {
-  const [displayedScore, setDisplayedScore] = useState(0);
+  const [displayedScore, setDisplayedScore] = useState("00.00");
   const [showTelemetry, setShowTelemetry] = useState(false);
+  const [phase, setPhase] = useState<'rolling' | 'slam' | 'reveal'>('rolling');
 
   useEffect(() => {
-    let start = 0;
-    const end = result.score;
-    const duration = 1500;
-    const increment = end / (duration / 16);
+    let animationFrameId: number;
+    setPhase('rolling');
+    const startTime = performance.now();
+    const duration = 1400; // 1.4s for rolling
+    const targetScore = result.score;
 
-    const timer = setInterval(() => {
-      start += increment;
-      if (start >= end) {
-        setDisplayedScore(end);
-        clearInterval(timer);
+    const easeOutCubic = (x: number): number => {
+      return 1 - Math.pow(1 - x, 3);
+    };
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      const currentScore = targetScore * easeOutCubic(progress);
+      setDisplayedScore(currentScore.toFixed(2).padStart(5, '0'));
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(animate);
       } else {
-        setDisplayedScore(Math.floor(start));
+        setDisplayedScore(targetScore.toFixed(2).padStart(5, '0'));
       }
-    }, 16);
+    };
 
-    return () => clearInterval(timer);
+    animationFrameId = requestAnimationFrame(animate);
+
+    // Sequence timers
+    const slamTimer = setTimeout(() => {
+      setPhase('slam');
+    }, 1450);
+
+    const revealTimer = setTimeout(() => {
+      setPhase('reveal');
+    }, 1600);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      clearTimeout(slamTimer);
+      clearTimeout(revealTimer);
+    };
   }, [result.score]);
 
   const handleShare = () => {
@@ -59,7 +84,7 @@ export function ResultCard({ result, stats, onReset }: ResultCardProps) {
   const [dateStr] = useState(() => new Date().toISOString().replace('T', ' ').substring(0, 19));
 
   return (
-    <div className="w-full max-w-2xl mx-auto p-4 animate-in fade-in zoom-in duration-500 pixelated">
+    <div className={`w-full max-w-2xl mx-auto p-4 animate-in fade-in zoom-in duration-500 pixelated ${phase === 'slam' ? 'animate-screen-shake' : ''}`}>
       <PixelCard className="flex flex-col items-center p-8 space-y-8 bg-[#111] border-dj-dark" variant="default">
         {/* Header */}
         <div className="w-full text-center border-b-2 border-[#333] pb-4 mb-2">
@@ -82,11 +107,17 @@ export function ResultCard({ result, stats, onReset }: ResultCardProps) {
 
           <div className="flex flex-col items-center">
             <h3 className="text-gray-500 font-press-start text-xs mb-4">RANK</h3>
-            <RankBadge rank={result.rank} className="scale-75 md:scale-100 origin-center" />
+            {phase === 'rolling' ? (
+              <div className="font-press-start text-4xl sm:text-6xl text-gray-600 animate-pulse mt-4">
+                [ ? ]
+              </div>
+            ) : (
+              <RankBadge rank={result.rank} className={`scale-75 md:scale-100 origin-center animate-badge-slam`} />
+            )}
           </div>
         </div>
 
-        {/* Verdict Box */}
+        <div className={`w-full transition-opacity duration-500 ${phase === 'reveal' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         <div className="w-full border-4 border-white p-6 bg-blue-900/20 relative mt-4">
           {/* RPG-style corner accents */}
           <div className="absolute top-0 left-0 w-2 h-2 bg-white" />
@@ -151,6 +182,7 @@ export function ResultCard({ result, stats, onReset }: ResultCardProps) {
           <PixelButton variant="danger" className="flex-1 text-sm py-4" onClick={onReset}>
             EJECT DRIVE
           </PixelButton>
+        </div>
         </div>
       </PixelCard>
     </div>
